@@ -1,36 +1,33 @@
 'use client'
-import { createContext, useContext, useState, useCallback } from 'react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
-const ToastContext = createContext(null)
+const tabs = [
+  { href: '/', label: 'Semaine', icon: '🏋️' },
+  { href: '/progression', label: 'Progrès', icon: '📈' },
+  { href: '/historique', label: 'Historique', icon: '📋' },
+  { href: '/repas', label: 'Repas', icon: '🍽️' },
+  { href: '/profil', label: 'Profil', icon: '⚖️' },
+]
 
-export function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([])
-
-  const showToast = useCallback((message, type = 'success') => {
-    const id = Date.now()
-    setToasts((t) => [...t, { id, message, type }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
-  }, [])
-
+export default function BottomNav() {
+  const pathname = usePathname()
   return (
-    <ToastContext.Provider value={showToast}>
-      {children}
-      <div className="fixed top-4 left-0 right-0 z-50 flex flex-col items-center gap-2 px-4 pointer-events-none max-w-md mx-auto">
-        {toasts.map((t) => (
-          <div key={t.id}
-            className={`w-full px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white flex items-center gap-2 animate-slide-down
-              ${t.type === 'success' ? 'bg-green-500' : t.type === 'error' ? 'bg-red-500' : 'bg-gray-700'}`}>
-            <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ'}</span>
-            {t.message}
-          </div>
-        ))}
+    <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto border-t"
+      style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
+      <div className="flex justify-around py-2">
+        {tabs.map((tab) => {
+          const isActive = pathname === tab.href || (tab.href !== '/' && pathname.startsWith(tab.href + '/'))
+          return (
+            <Link key={tab.href} href={tab.href}
+              className="nav-link py-1 px-1"
+              style={{ color: isActive ? 'var(--orange)' : 'var(--text-muted)' }}>
+              <span className="text-lg">{tab.icon}</span>
+              <span className="text-[10px]">{tab.label}</span>
+            </Link>
+          )
+        })}
       </div>
-    </ToastContext.Provider>
+    </nav>
   )
-}
-
-export function useToast() {
-  const ctx = useContext(ToastContext)
-  if (!ctx) throw new Error('useToast doit être utilisé dans ToastProvider')
-  return ctx
 }

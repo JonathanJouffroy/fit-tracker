@@ -1,85 +1,82 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import Header from './components/Header'
 
-export default function RestTimer({ dureeSecondes, onTermine }) {
-  const [tempsRestant, setTempsRestant] = useState(dureeSecondes)
-  const [enCours, setEnCours] = useState(true)
-  const intervalRef = useRef(null)
+export default function Home() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [jours, setJours] = useState([])
+  const [compteurs, setCompteurs] = useState({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setTempsRestant(dureeSecondes)
-    setEnCours(true)
-  }, [dureeSecondes])
+    verifierEtCharger()
+  }, [])
 
-  useEffect(() => {
-    if (!enCours) return
+  async function verifierEtCharger() {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { router.push('/login'); return }
 
-    intervalRef.current = setInterval(() => {
-      setTempsRestant((t) => {
-        if (t <= 1) {
-          clearInterval(intervalRef.current)
-          setEnCours(false)
-          // Vibration si supportée (mobile)
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200])
-          onTermine?.()
-          return 0
-        }
-        return t - 1
-      })
-    }, 1000)
+    // Vérifier que le profil a été rempli (onboarding)
+    const { data: profil } = await supabase.from('profil').select('id').eq('user_id', user.id).single()
+    if (!profil) { router.push('/onboarding'); return }
 
-    return () => clearInterval(intervalRef.current)
-  }, [enCours])
+    const { data: joursData } = await supabase.from('jours').select('*').order('numero')
+    const { data: exosData } = await supabase.from('exercices').select('jour_id').eq('user_id', user.id)
 
-  function ajouterTemps(secondes) {
-    setTempsRestant((t) => Math.max(0, t + secondes))
-    if (tempsRestant <= 0) setEnCours(true)
+    const counts = {}
+    exosData?.forEach((e) => { counts[e.jour_id] = (counts[e.jour_id] || 0) + 1 })
+
+    setJours(joursData || [])
+    setCompteurs(counts)
+    setLoading(false)
   }
 
-  function togglePause() {
-    setEnCours((e) => !e)
-  }
-
-  const minutes = Math.floor(tempsRestant / 60)
-  const secs = tempsRestant % 60
-  const pourcentage = ((dureeSecondes - tempsRestant) / dureeSecondes) * 100
+  const jourActuelNumero = (() => {
+    const d = new Date().getDay()
+    return d === 0 ? 7 : d
+  })()
 
   return (
-    <div className="card flex flex-col items-center gap-4">
-      <p className="text-sm text-gray-500 font-medium">Temps de repos</p>
+    <div>
+      <Header title="Ma semaine" subtitle="Planning d'entraînement" />
 
-      <div className="relative w-40 h-40 flex items-center justify-center">
-        <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="45" fill="none" stroke="#f0f0f0" strokeWidth="8" />
-          <circle
-            cx="50" cy="50" r="45" fill="none"
-            stroke={tempsRestant === 0 ? '#22c55e' : '#FF5722'}
-            strokeWidth="8"
-            strokeDasharray={2 * Math.PI * 45}
-            strokeDashoffset={2 * Math.PI * 45 * (1 - pourcentage / 100)}
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 1s linear' }}
-          />
-        </svg>
-        <span className="text-3xl font-bold tabular-nums">
-          {minutes}:{secs.toString().padStart(2, '0')}
-        </span>
-      </div>
+      <Link href="/programmes" className="flex items-center justify-between card mb-4 py-3">
+        <div className="flex items-center gap-2">
+          <span>📋</span>
+          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Changer de programme</p>
+        </div>
+        <span style={{ color: 'var(--text-faint)' }}>›</span>
+      </Link>
 
-      <div className="flex gap-2 w-full">
-        <button onClick={() => ajouterTemps(-15)} className="flex-1 py-2 rounded-xl bg-gray-100 font-medium text-sm">
-          -15s
-        </button>
-        <button onClick={togglePause} className="flex-[2] py-2 rounded-xl bg-orange-600 text-white font-semibold text-sm">
-          {enCours ? 'Pause' : tempsRestant === 0 ? 'Relancer' : 'Reprendre'}
-        </button>
-        <button onClick={() => ajouterTemps(15)} className="flex-1 py-2 rounded-xl bg-gray-100 font-medium text-sm">
-          +15s
-        </button>
-      </div>
-
-      {tempsRestant === 0 && (
-        <p className="text-green-600 font-semibold text-sm">Repos terminé, c'est reparti 💪</p>
+      {loading ? (
+        <p className="text-gray-400">Chargement...</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {jours.map((jour) => {
+            const isToday = jour.numero === jourActuelNumero
+            const nbExos = compteurs[jour.id] || 0
+            return (
+              <Link key={jour.id} href={`/seance/${jour.id}`}>
+                <div className={`card flex items-center justify-between ${isToday ? 'ring-2 ring-orange-500' : ''}`}>
+                  <div>
+                    <p className="font-semibold text-lg">
+                      {jour.nom} {isToday && <span className="text-orange-600 text-sm">· aujourd'hui</span>}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {nbExos > 0 ? `${nbExos} exercice${nbExos > 1 ? 's' : ''}` : 'Repos / aucun exercice'}
+                    </p>
+                  </div>
+                  <span className="text-gray-300 text-xl">›</span>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
       )}
     </div>
   )
