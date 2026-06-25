@@ -10,8 +10,15 @@ const tabs = [
   { href: '/profil', label: 'Profil', icon: '⚖️' },
 ]
 
+// Pages où la nav ne doit pas apparaître
+const PAGES_SANS_NAV = ['/login', '/onboarding']
+
 export default function BottomNav() {
   const pathname = usePathname()
+
+  // Masquer la nav sur les pages publiques
+  if (PAGES_SANS_NAV.some((p) => pathname.startsWith(p))) return null
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto border-t"
       style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
