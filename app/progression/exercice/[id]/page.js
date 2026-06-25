@@ -108,12 +108,18 @@ export default function ProgressionExercice() {
     const idsParam = searchParams.get('ids')
     const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
 
-    const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
-    setNomExercice(exo?.nom || '')
+    // Nom : depuis le paramètre URL (snapshot) ou depuis la DB
+    const nomParam = searchParams.get('nom')
+    if (nomParam) {
+      setNomExercice(decodeURIComponent(nomParam))
+    } else {
+      const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
+      setNomExercice(exo?.nom || '')
+    }
 
     const { data: logs } = await supabase
       .from('seances_log')
-      .select('date_seance, exercice_id, poids_kg, repetitions_faites, serie_numero')
+      .select('date_seance, exercice_id, exercice_nom, poids_kg, repetitions_faites, serie_numero')
       .eq('user_id', user.id)
       .in('exercice_id', ids)
       .order('date_seance', { ascending: true })
