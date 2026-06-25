@@ -8,7 +8,6 @@ export default function Progression() {
   const supabase = createClient()
   const [exercices, setExercices] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filtre, setFiltre] = useState('tous')
 
   useEffect(() => { charger() }, [])
 
@@ -17,16 +16,17 @@ export default function Progression() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Tous les exercices de l'utilisateur (pour avoir les IDs et les jours)
+    // Tous les exercices actuels (pour la liste complète incluant ceux sans logs)
     const { data: exos } = await supabase
       .from('exercices')
       .select('id, nom, jour_id, jours(nom)')
       .eq('user_id', user.id)
 
-    // Tous les logs avec poids
+    // Tous les logs — on utilise exercice_nom (snapshot) en priorité,
+    // fallback sur la map id→nom si l'ancien log n'a pas de snapshot
     const { data: logs } = await supabase
       .from('seances_log')
-      .select('exercice_id, date_seance, poids_kg, repetitions_faites')
+      .select('exercice_id, exercice_nom, date_seance, poids_kg, repetitions_faites')
       .eq('user_id', user.id)
       .not('poids_kg', 'is', null)
       .gt('poids_kg', 0)
@@ -34,25 +34,34 @@ export default function Progression() {
 
     if (!exos) { setLoading(false); return }
 
-    // Map exercice_id → nom pour retrouver le nom depuis les logs
+    // Map id → nom actuel (fallback pour anciens logs sans exercice_nom)
     const nomParId = {}
     exos.forEach((e) => { nomParId[e.id] = e.nom })
 
-    // Regrouper les logs par NOM d'exercice (pas par ID)
+    // Map id → [ids du même nom actuel] — pour construire les liens
+    const idsByNom = {}
+    exos.forEach((e) => {
+      if (!idsByNom[e.nom]) idsByNom[e.nom] = []
+      idsByNom[e.nom].push(e.id)
+    })
+
+    // Regrouper les logs par nom (snapshot > nom actuel)
     const logsParNom = {}
     logs?.forEach((l) => {
-      const nom = nomParId[l.exercice_id]
+      const nom = l.exercice_nom || nomParId[l.exercice_id]
       if (!nom) return
       if (!logsParNom[nom]) logsParNom[nom] = []
       logsParNom[nom].push(l)
     })
 
-    // Pour chaque nom unique, calculer PR, tendance, nb séances
-    const nomsUniques = [...new Set(exos.map((e) => e.nom))].sort()
+    // Noms à afficher = union des noms actuels + noms dans les logs
+    const nomsActuels = new Set(exos.map((e) => e.nom))
+    const nomsLogs = new Set(Object.keys(logsParNom))
+    const tousLesNoms = [...new Set([...nomsActuels, ...nomsLogs])].sort()
 
-    const resultats = nomsUniques.map((nom) => {
-      const idsAvecCeNom = exos.filter((e) => e.nom === nom).map((e) => e.id)
-      const idRepresentatif = idsAvecCeNom[0]
+    const resultats = tousLesNoms.map((nom) => {
+      const idsAvecCeNom = idsByNom[nom] || []
+      const idRepresentatif = idsAvecCeNom[0] || null
       const logsNom = logsParNom[nom] || []
 
       if (logsNom.length === 0) {
@@ -62,23 +71,25 @@ export default function Progression() {
       const pr = Math.max(...logsNom.map((l) => l.poids_kg))
 
       // Grouper par date + exercice_id pour distinguer Squat lundi vs Squat jeudi
-      // même s'ils sont faits le même jour calendaire
       const parSession = {}
       logsNom.forEach((l) => {
         const key = `${l.date_seance}__${l.exercice_id}`
-        if (!parSession[key]) parSession[key] = { date: l.date_seance, poids: [] }
-        parSession[key].poids.push(l.poids_kg)
+        if (!parSession[key]) parSession[key] = []
+        parSession[key].push(l.poids_kg)
       })
+      const sessions = Object.entries(parSession)
+        .map(([, poids]) => Math.max(...poids))
+        .sort()
 
-      const sessions = Object.values(parSession)
-        .map((s) => ({ date: s.date, poidsMax: Math.max(...s.poids) }))
-        .sort((a, b) => a.date.localeCompare(b.date))
-
-      const dernierPoids = sessions[sessions.length - 1]?.poidsMax || null
-      const avantDernier = sessions[sessions.length - 2]?.poidsMax || null
+      const dernierPoids = sessions[sessions.length - 1] || null
+      const avantDernier = sessions[sessions.length - 2] || null
       const tendance = dernierPoids && avantDernier ? dernierPoids - avantDernier : null
 
-      return { nom, idRepresentatif, idsAvecCeNom, nbSeances: sessions.length, pr, dernierPoids, tendance }
+      return {
+        nom, idRepresentatif, idsAvecCeNom,
+        nbSeances: sessions.length, pr, dernierPoids, tendance,
+        sansLienProg: !idRepresentatif, // exercice renommé/supprimé
+      }
     })
 
     setExercices(resultats)
@@ -106,8 +117,12 @@ export default function Progression() {
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>
                 Avec données ({avecDonnees.length} exercice{avecDonnees.length > 1 ? 's' : ''})
               </p>
-              {avecDonnees.map(({ nom, idRepresentatif, idsAvecCeNom, nbSeances, pr, dernierPoids, tendance }) => (
-                <Link key={nom} href={`/progression/exercice/${idRepresentatif}?ids=${idsAvecCeNom.join(',')}`}>
+              {avecDonnees.map(({ nom, idRepresentatif, idsAvecCeNom, nbSeances, pr, dernierPoids, tendance, sansLienProg }) => {
+                const lien = idRepresentatif
+                  ? `/progression/exercice/${idRepresentatif}?ids=${idsAvecCeNom.join(',')}&nom=${encodeURIComponent(nom)}`
+                  : null
+
+                const contenu = (
                   <div className="card flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -118,6 +133,9 @@ export default function Progression() {
                           }}>
                             {tendance > 0 ? `▲ +${tendance}kg` : tendance < 0 ? `▼ ${tendance}kg` : '→ stable'}
                           </span>
+                        )}
+                        {sansLienProg && (
+                          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>(renommé)</span>
                         )}
                       </div>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -130,8 +148,12 @@ export default function Progression() {
                       <p className="text-xs" style={{ color: 'var(--text-faint)' }}>PR : {pr}kg</p>
                     </div>
                   </div>
-                </Link>
-              ))}
+                )
+
+                return lien
+                  ? <Link key={nom} href={lien}>{contenu}</Link>
+                  : <div key={nom}>{contenu}</div>
+              })}
             </div>
           )}
 
