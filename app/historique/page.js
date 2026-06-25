@@ -23,9 +23,15 @@ export default function Historique() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Charger tous les logs avec le nom de l'exercice
+    // Charger les exercices pour avoir les noms actuels (fallback)
+    const { data: tousExos } = await supabase
+      .from('exercices').select('id, nom').eq('user_id', user.id)
+    const nomParId = {}
+    tousExos?.forEach((e) => { nomParId[e.id] = e.nom })
+
+    // Charger les logs sans join RLS (utilise exercice_nom snapshot en priorité)
     const { data: logs } = await supabase.from('seances_log')
-      .select('date_seance, exercice_id, serie_numero, repetitions_faites, poids_kg, exercices(nom)')
+      .select('date_seance, exercice_id, exercice_nom, serie_numero, repetitions_faites, poids_kg')
       .eq('user_id', user.id)
       .order('date_seance', { ascending: false })
       .order('exercice_id')
@@ -36,7 +42,8 @@ export default function Historique() {
     logs?.forEach((log) => {
       const date = log.date_seance
       if (!parDate[date]) parDate[date] = {}
-      const nomExo = log.exercices?.nom || `Exercice #${log.exercice_id}`
+      // Utilise le snapshot du nom au moment du log, sinon le nom actuel
+      const nomExo = log.exercice_nom || nomParId[log.exercice_id] || `Exercice #${log.exercice_id}`
       if (!parDate[date][log.exercice_id]) parDate[date][log.exercice_id] = { nom: nomExo, series: [] }
       parDate[date][log.exercice_id].series.push({
         serie: log.serie_numero,
