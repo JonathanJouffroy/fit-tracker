@@ -44,6 +44,7 @@ create table seances_log (
   id bigint generated always as identity primary key,
   user_id uuid references auth.users(id) on delete cascade not null,
   exercice_id bigint references exercices(id) on delete cascade,
+  exercice_nom text, -- nom snapshot au moment du log, immuable même si l'exercice est modifié
   date_seance date default current_date,
   serie_numero int not null,
   poids_kg numeric,
@@ -286,9 +287,21 @@ select id,'Chocolat noir 85%','1 carré (~10g)',55,1,2,5,2 from c2 union all
 select id,'Amandes','1 petite poignée (15g)',90,3,1,8,3 from c2 union all
 select id,'Pomme','1 moyenne (~150g)',66,0,15,1,4 from c2;
 
--- ============================================
--- VUE : Progression par exercice (à ajouter après le dump principal)
--- ============================================
+-- Durée des séances (enregistrée à l'arrêt du timer)
+create table seances_duree (
+  id bigint generated always as identity primary key,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  jour_id bigint references jours(id),
+  date_seance date default current_date,
+  duree_secondes int not null,
+  created_at timestamp default now()
+);
+
+alter table seances_duree enable row level security;
+create policy "user seances_duree" on seances_duree for all
+  using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index idx_seances_duree_user on seances_duree(user_id);
+create index idx_seances_duree_date on seances_duree(date_seance);
 create or replace view progression_exercice as
 select
   sl.user_id,
