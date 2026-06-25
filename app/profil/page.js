@@ -55,9 +55,11 @@ export default function Profil() {
     if (!user) return
     setUserId(user.id)
 
-    // Mesures
+    // Mesures — tri par created_at pour garantir la plus récente même si même date
     const { data: mesures } = await supabase.from('mesures').select('*')
-      .eq('user_id', user.id).order('date_mesure', { ascending: false }).limit(10)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10)
     setHistorique(mesures || [])
     const derniereMesure = mesures?.[0]
     if (derniereMesure) { setPoids(derniereMesure.poids_kg); setTaille(derniereMesure.taille_cm) }
@@ -177,8 +179,13 @@ export default function Profil() {
   async function enregistrerMesure(e) {
     e.preventDefault()
     if (!poids || !taille || !userId) return
-    await supabase.from('mesures').insert([{ user_id: userId, poids_kg: Number(poids), taille_cm: Number(taille) }])
-    chargerTout()
+    const { error } = await supabase.from('mesures').insert([{
+      user_id: userId, poids_kg: Number(poids), taille_cm: Number(taille)
+    }])
+    if (!error) {
+      toast('Mesure enregistrée ✓')
+      await chargerTout()
+    }
   }
 
   async function enregistrerProfil(e) {
