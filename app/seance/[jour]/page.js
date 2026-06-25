@@ -20,15 +20,13 @@ export default function SeanceJour() {
   const [exoActifTimer, setExoActifTimer] = useState(null)
   const [poidsCorps, setPoidsCorps] = useState(null)
   const [userId, setUserId] = useState(null)
-
-  // Persisté dans localStorage pour survivre aux changements de page
   const [seriesFaites, setSeriesFaites] = useState({})
   const [poidsSerieEnCours, setPoidsSerieEnCours] = useState({})
-
-  // Autocomplétion
   const [nomsExistants, setNomsExistants] = useState([])
 
-  // Formulaire ajout
+  // Map nom → liste d'IDs pour construire le lien progression
+  const [idsByNom, setIdsByNom] = useState({})
+
   const [showForm, setShowForm] = useState(false)
   const [nom, setNom] = useState('')
   const [series, setSeries] = useState(3)
@@ -36,19 +34,16 @@ export default function SeanceJour() {
   const [repos, setRepos] = useState(60)
   const [poidsCharge, setPoidsCharge] = useState('')
 
-  // Formulaire édition
-  const [exoEnEdition, setExoEnEdition] = useState(null) // exercice complet en cours d'édition
+  const [exoEnEdition, setExoEnEdition] = useState(null)
   const [editNom, setEditNom] = useState('')
   const [editSeries, setEditSeries] = useState(3)
   const [editRepetitions, setEditRepetitions] = useState(10)
   const [editRepos, setEditRepos] = useState(60)
   const [editPoidsCharge, setEditPoidsCharge] = useState('')
 
-  // Clé localStorage basée sur le jour et la date du jour
   const storageKey = `seance-${jourId}-${new Date().toISOString().split('T')[0]}`
 
   useEffect(() => {
-    // Restaurer l'état de la séance depuis localStorage
     try {
       const saved = localStorage.getItem(storageKey)
       if (saved) {
@@ -60,7 +55,6 @@ export default function SeanceJour() {
     chargerTout()
   }, [jourId])
 
-  // Sauvegarder dans localStorage à chaque changement de séries
   useEffect(() => {
     if (Object.keys(seriesFaites).length === 0) return
     try {
@@ -78,15 +72,23 @@ export default function SeanceJour() {
       supabase.from('jours').select('*').eq('id', jourId).single(),
       supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
       supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('date_mesure', { ascending: false }).limit(1),
-      supabase.from('exercices').select('nom').eq('user_id', user.id),
+      // Tous les exercices de l'utilisateur pour construire la map nom→IDs
+      supabase.from('exercices').select('id, nom').eq('user_id', user.id),
     ])
 
     setJour(jourData)
     setExercices(exosData || [])
     setPoidsCorps(mesures?.[0]?.poids_kg || null)
+
+    // Construire nom → [id1, id2, ...] pour le lien progression
+    const map = {}
+    tousExos?.forEach((e) => {
+      if (!map[e.nom]) map[e.nom] = []
+      map[e.nom].push(e.id)
+    })
+    setIdsByNom(map)
     setNomsExistants([...new Set((tousExos || []).map((e) => e.nom))].sort())
 
-    // Pré-remplir le poids seulement pour les nouveaux exercices
     setPoidsSerieEnCours((prev) => {
       const next = { ...prev }
       exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
@@ -99,11 +101,25 @@ export default function SeanceJour() {
     const { data: exosData } = await supabase.from('exercices').select('*')
       .eq('jour_id', jourId).eq('user_id', uid).order('ordre')
     setExercices(exosData || [])
+    // Mettre à jour aussi la map idsByNom
+    const { data: tousExos } = await supabase.from('exercices').select('id, nom').eq('user_id', uid)
+    const map = {}
+    tousExos?.forEach((e) => {
+      if (!map[e.nom]) map[e.nom] = []
+      map[e.nom].push(e.id)
+    })
+    setIdsByNom(map)
     setPoidsSerieEnCours((prev) => {
       const next = { ...prev }
       exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
       return next
     })
+  }
+
+  // Construit le lien progression avec tous les IDs du même nom
+  function lienProgression(exo) {
+    const ids = idsByNom[exo.nom] || [exo.id]
+    return `/progression/exercice/${ids[0]}?ids=${ids.join(',')}`
   }
 
   async function ajouterExercice(e) {
@@ -216,8 +232,6 @@ export default function SeanceJour() {
           return (
             <div key={exo.id} className="flex flex-col gap-3">
               <div className="card" style={{ opacity: termine && !enEdition ? 0.6 : 1 }}>
-
-                {/* Mode édition */}
                 {enEdition ? (
                   <form onSubmit={sauvegarderEdition} className="flex flex-col gap-3">
                     <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Modifier l'exercice</p>
@@ -249,20 +263,16 @@ export default function SeanceJour() {
                         style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
                         Annuler
                       </button>
-                      <button type="submit" className="flex-1 btn-primary text-sm py-2">
-                        Enregistrer
-                      </button>
+                      <button type="submit" className="flex-1 btn-primary text-sm py-2">Enregistrer</button>
                     </div>
                   </form>
                 ) : (
-                  /* Mode normal */
                   <>
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-semibold" style={{ color: 'var(--text)' }}>{exo.nom}</p>
-                          <Link href={`/progression/exercice/${exo.id}`}
-                            className="text-xs underline" style={{ color: 'var(--orange)' }}>
+                          <Link href={lienProgression(exo)} className="text-xs underline" style={{ color: 'var(--orange)' }}>
                             Progression →
                           </Link>
                         </div>
@@ -280,11 +290,9 @@ export default function SeanceJour() {
                       <div className="flex gap-2 ml-2">
                         <button onClick={() => ouvrirEdition(exo)}
                           className="text-xs px-2 py-1 rounded-lg"
-                          style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-                          ✏️
-                        </button>
+                          style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>✏️</button>
                         <button onClick={() => supprimerExercice(exo.id, exo.nom)}
-                          className="text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
+                          style={{ color: 'var(--text-faint)' }}>✕</button>
                       </div>
                     </div>
 
@@ -308,7 +316,7 @@ export default function SeanceJour() {
 
                     <div className="flex gap-1 mt-3">
                       {Array.from({ length: exo.series }).map((_, i) => (
-                        <div key={i} className={`flex-1 h-1.5 rounded-full`}
+                        <div key={i} className="flex-1 h-1.5 rounded-full"
                           style={{ background: i < fait ? '#22c55e' : 'var(--surface-2)' }} />
                       ))}
                     </div>
@@ -328,7 +336,6 @@ export default function SeanceJour() {
         )}
       </div>
 
-      {/* Formulaire ajout */}
       {!showForm && !exoEnEdition ? (
         <button onClick={() => setShowForm(true)} className="btn-primary w-full mt-6">+ Ajouter un exercice</button>
       ) : showForm && (
