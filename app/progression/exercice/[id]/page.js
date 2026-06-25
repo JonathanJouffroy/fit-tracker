@@ -118,19 +118,22 @@ export default function ProgressionExercice() {
       .in('exercice_id', ids)
       .order('date_seance', { ascending: true })
 
-    const parDate = {}
+    const parSession = {}
     logs?.forEach((log) => {
-      const d = log.date_seance
-      if (!parDate[d]) parDate[d] = []
-      parDate[d].push(log)
+      const key = `${log.date_seance}__${log.exercice_id}`
+      if (!parSession[key]) parSession[key] = []
+      parSession[key].push(log)
     })
 
-    const sessionsCalc = Object.entries(parDate).map(([date, lignes]) => {
-      const avecPoids = lignes.filter((l) => l.poids_kg && l.poids_kg > 0)
-      const poids_max = avecPoids.length > 0 ? Math.max(...avecPoids.map((l) => l.poids_kg)) : null
-      const volume = avecPoids.reduce((acc, l) => acc + l.poids_kg * (l.repetitions_faites || 0), 0)
-      return { date, poids_max, volume: Math.round(volume), nb_series: lignes.length }
-    })
+    const sessionsCalc = Object.entries(parSession)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, lignes]) => {
+        const date = key.split('__')[0]
+        const avecPoids = lignes.filter((l) => l.poids_kg && l.poids_kg > 0)
+        const poids_max = avecPoids.length > 0 ? Math.max(...avecPoids.map((l) => l.poids_kg)) : null
+        const volume = avecPoids.reduce((acc, l) => acc + l.poids_kg * (l.repetitions_faites || 0), 0)
+        return { date, poids_max, volume: Math.round(volume), nb_series: lignes.length }
+      })
 
     setSessions(sessionsCalc)
     setLoading(false)
