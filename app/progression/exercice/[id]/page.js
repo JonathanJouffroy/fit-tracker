@@ -1,15 +1,16 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
 export default function ProgressionExercice() {
   const { id: exerciceId } = useParams()
+  const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
 
-  const [exercice, setExercice] = useState(null)
-  const [sessions, setSessions] = useState([]) // [{date, poids_max, volume, nb_series}]
+  const [nomExercice, setNomExercice] = useState('')
+  const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { charger() }, [exerciceId])
@@ -19,14 +20,20 @@ export default function ProgressionExercice() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const { data: exo } = await supabase.from('exercices').select('*').eq('id', exerciceId).single()
-    setExercice(exo)
+    // Récupérer tous les IDs (le même exercice peut exister sur plusieurs jours)
+    const idsParam = searchParams.get('ids')
+    const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
 
-    // Récupérer tous les logs pour cet exercice, groupés par date côté JS
-    const { data: logs } = await supabase.from('seances_log')
-      .select('date_seance, poids_kg, repetitions_faites, serie_numero')
+    // Nom de l'exercice
+    const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
+    setNomExercice(exo?.nom || '')
+
+    // Logs pour TOUS les IDs de cet exercice
+    const { data: logs } = await supabase
+      .from('seances_log')
+      .select('date_seance, exercice_id, poids_kg, repetitions_faites, serie_numero')
       .eq('user_id', user.id)
-      .eq('exercice_id', exerciceId)
+      .in('exercice_id', ids)
       .order('date_seance', { ascending: true })
 
     // Grouper par date
@@ -48,14 +55,13 @@ export default function ProgressionExercice() {
     setLoading(false)
   }
 
-  if (loading) return <p className="text-gray-400 px-4 pt-6">Chargement...</p>
+  if (loading) return <p className="pt-6" style={{ color: 'var(--text-muted)' }}>Chargement...</p>
 
   const sessionsAvecPoids = sessions.filter((s) => s.poids_max !== null)
   const pr = sessionsAvecPoids.length > 0 ? Math.max(...sessionsAvecPoids.map((s) => s.poids_max)) : null
   const derniere = sessionsAvecPoids[sessionsAvecPoids.length - 1]
   const avantDerniere = sessionsAvecPoids[sessionsAvecPoids.length - 2]
   const progression = derniere && avantDerniere ? derniere.poids_max - avantDerniere.poids_max : null
-
   const maxPoids = pr || 1
   const maxVolume = Math.max(...sessions.map((s) => s.volume), 1)
 
@@ -65,77 +71,82 @@ export default function ProgressionExercice() {
 
   return (
     <div>
-      <button onClick={() => router.back()} className="text-orange-600 text-sm mb-3">← Retour</button>
-      <h1 className="text-2xl font-bold mb-1">{exercice?.nom}</h1>
-      <p className="text-gray-500 text-sm mb-6">{exercice?.series} séries × {exercice?.repetitions} reps</p>
+      <button onClick={() => router.back()} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
+      <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--text)' }}>{nomExercice}</h1>
 
       {sessions.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-2xl mb-2">📊</p>
-          <p className="text-gray-500">Aucune séance enregistrée pour cet exercice.</p>
-          <p className="text-gray-400 text-sm mt-1">Complète une séance en indiquant le poids utilisé pour voir ta progression ici.</p>
+          <p style={{ color: 'var(--text-muted)' }}>Aucune séance enregistrée.</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>
+            Complète une séance en indiquant le poids utilisé.
+          </p>
         </div>
       ) : (
         <>
-          {/* Cards statistiques */}
+          {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mb-6">
             <div className="card text-center py-3">
-              <p className="text-xl font-bold text-orange-600">{pr ? `${pr}kg` : '—'}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Record (PR)</p>
+              <p className="text-xl font-bold" style={{ color: 'var(--orange)' }}>{pr ? `${pr}kg` : '—'}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Record (PR)</p>
             </div>
             <div className="card text-center py-3">
-              <p className={`text-xl font-bold ${progression === null ? 'text-gray-400' : progression >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+              <p className="text-xl font-bold" style={{
+                color: progression === null ? 'var(--text-faint)' : progression >= 0 ? '#22c55e' : '#ef4444'
+              }}>
                 {progression === null ? '—' : `${progression >= 0 ? '+' : ''}${progression}kg`}
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">Dernière séance</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Évolution</p>
             </div>
             <div className="card text-center py-3">
-              <p className="text-xl font-bold text-gray-700">{sessions.length}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Séances</p>
+              <p className="text-xl font-bold" style={{ color: 'var(--text)' }}>{sessions.length}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Séances</p>
             </div>
           </div>
 
-          {/* Graphique poids max par séance */}
+          {/* Graphique poids max */}
           {sessionsAvecPoids.length > 0 && (
             <div className="card mb-4">
-              <p className="font-semibold text-sm mb-3">Poids max par séance (kg)</p>
+              <p className="font-semibold text-sm mb-3" style={{ color: 'var(--text)' }}>Poids max par séance (kg)</p>
               <div className="flex items-end gap-1" style={{ height: '100px' }}>
-                {sessionsAvecPoids.map((s, i) => {
-                  const hauteur = Math.round((s.poids_max / maxPoids) * 88)
+                {sessionsAvecPoids.map((s) => {
+                  const hauteur = Math.round((s.poids_max / maxPoids) * 80)
                   const isPR = s.poids_max === pr
                   return (
                     <div key={s.date} className="flex-1 flex flex-col items-center gap-1">
-                      <p className="text-[9px] text-gray-400 tabular-nums">{s.poids_max}kg</p>
-                      <div className="w-full flex items-end justify-center" style={{ height: '72px' }}>
-                        <div
-                          className={`w-full rounded-t transition-all ${isPR ? 'bg-orange-500' : 'bg-orange-300'}`}
-                          style={{ height: `${hauteur}px` }}
-                        />
+                      <p className="text-[9px] tabular-nums" style={{ color: 'var(--text-faint)' }}>{s.poids_max}kg</p>
+                      <div className="w-full flex items-end" style={{ height: '72px' }}>
+                        <div className="w-full rounded-t"
+                          style={{ height: `${hauteur}px`, background: isPR ? 'var(--orange)' : '#FFB299' }} />
                       </div>
-                      <p className="text-[9px] text-gray-400 text-center leading-tight">{labelDate(s.date)}</p>
+                      <p className="text-[9px] text-center leading-tight" style={{ color: 'var(--text-faint)' }}>
+                        {labelDate(s.date)}
+                      </p>
                     </div>
                   )
                 })}
               </div>
-              <p className="text-xs text-gray-400 text-center mt-2">La barre orange foncé = ton record</p>
+              <p className="text-xs text-center mt-2" style={{ color: 'var(--text-faint)' }}>
+                Barre orange = ton record
+              </p>
             </div>
           )}
 
-          {/* Graphique volume par séance */}
+          {/* Graphique volume */}
           {sessions.filter((s) => s.volume > 0).length > 0 && (
             <div className="card mb-4">
-              <p className="font-semibold text-sm mb-1">Volume total par séance (kg)</p>
-              <p className="text-xs text-gray-400 mb-3">Volume = séries × répétitions × poids</p>
-              <div className="flex items-end gap-1" style={{ height: '88px' }}>
+              <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text)' }}>Volume total (kg)</p>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>séries × répétitions × poids</p>
+              <div className="flex items-end gap-1" style={{ height: '80px' }}>
                 {sessions.filter((s) => s.volume > 0).map((s) => (
                   <div key={s.date} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full flex items-end justify-center" style={{ height: '72px' }}>
-                      <div
-                        className="w-full rounded-t bg-blue-300"
-                        style={{ height: `${Math.round((s.volume / maxVolume) * 72)}px` }}
-                      />
+                    <div className="w-full flex items-end" style={{ height: '64px' }}>
+                      <div className="w-full rounded-t"
+                        style={{ height: `${Math.round((s.volume / maxVolume) * 64)}px`, background: '#93C5FD' }} />
                     </div>
-                    <p className="text-[9px] text-gray-400 text-center leading-tight">{labelDate(s.date)}</p>
+                    <p className="text-[9px] text-center leading-tight" style={{ color: 'var(--text-faint)' }}>
+                      {labelDate(s.date)}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -144,20 +155,25 @@ export default function ProgressionExercice() {
 
           {/* Historique détaillé */}
           <div className="card">
-            <p className="font-semibold text-sm mb-3">Historique détaillé</p>
-            <div className="flex flex-col gap-3">
+            <p className="font-semibold text-sm mb-3" style={{ color: 'var(--text)' }}>Historique</p>
+            <div className="flex flex-col gap-2">
               {[...sessions].reverse().map((s) => (
-                <div key={s.date} className="flex items-center justify-between border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+                <div key={s.date} className="flex items-center justify-between pb-2 border-b last:border-0 last:pb-0"
+                  style={{ borderColor: 'var(--border)' }}>
                   <div>
-                    <p className="text-sm font-medium">{labelDate(s.date)}</p>
-                    <p className="text-xs text-gray-400">{s.nb_series} série{s.nb_series > 1 ? 's' : ''}</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>
+                      {new Date(s.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {s.nb_series} série{s.nb_series > 1 ? 's' : ''}
+                    </p>
                   </div>
                   <div className="text-right">
                     {s.poids_max !== null && (
-                      <p className="text-sm font-semibold text-orange-600">{s.poids_max} kg</p>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--orange)' }}>{s.poids_max} kg</p>
                     )}
                     {s.volume > 0 && (
-                      <p className="text-xs text-gray-400">vol. {s.volume} kg</p>
+                      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>vol. {s.volume} kg</p>
                     )}
                   </div>
                 </div>
