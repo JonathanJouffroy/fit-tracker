@@ -1,15 +1,20 @@
-const CACHE_NAME = 'fit-tracker-v1'
+// ⚠️ Change ce numéro à chaque déploiement important pour forcer la mise à jour
+const CACHE_VERSION = 'v2'
+const CACHE_NAME = `fit-tracker-${CACHE_VERSION}`
 
-// Assets statiques à mettre en cache immédiatement
 const STATIC_ASSETS = [
   '/',
   '/repas',
   '/profil',
   '/progression',
   '/programmes',
+  '/historique',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
 ]
 
-// Installation : cache les pages principales
+// Installation
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -21,27 +26,33 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter((k) => k.startsWith('fit-tracker-') && k !== CACHE_NAME)
+          .map((k) => caches.delete(k))
+      )
     )
   )
   self.clients.claim()
 })
 
-// Fetch : stratégie Network First pour les API, Cache First pour les assets statiques
+// Fetch
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Ne pas intercepter les requêtes Supabase (toujours réseau)
+  // Ne jamais intercepter Supabase (toujours réseau direct)
   if (url.hostname.includes('supabase.co')) return
 
-  // Assets Next.js (_next/) : Cache First
-  if (url.pathname.startsWith('/_next/')) {
+  // Ne pas intercepter les requêtes POST/PUT/DELETE (mutations)
+  if (request.method !== 'GET') return
+
+  // Assets Next.js : Cache First
+  if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.match(request).then((cached) =>
-        cached || fetch(request).then((response) => {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+      caches.match(request).then(
+        (cached) => cached || fetch(request).then((response) => {
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()))
           return response
         })
       )
@@ -49,14 +60,20 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Pages : Network First, fallback cache
+  // Pages et autres assets : Network First, fallback cache
   event.respondWith(
     fetch(request)
       .then((response) => {
-        const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
+        if (response.ok) {
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()))
+        }
         return response
       })
       .catch(() => caches.match(request))
   )
+})
+
+// Message pour forcer la mise à jour depuis l'app
+self.addEventListener('message', (event) => {
+  if (event.data === 'skipWaiting') self.skipWaiting()
 })
