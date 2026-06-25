@@ -178,8 +178,12 @@ export default function SeanceJour() {
     setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
     const poidsSerie = parseFloat(poidsSerieEnCours[exercice.id]) || null
     await supabase.from('seances_log').insert([{
-      user_id: userId, exercice_id: exercice.id,
-      serie_numero: fait, repetitions_faites: exercice.repetitions, poids_kg: poidsSerie,
+      user_id: userId,
+      exercice_id: exercice.id,
+      exercice_nom: exercice.nom, // snapshot du nom au moment du log
+      serie_numero: fait,
+      repetitions_faites: exercice.repetitions,
+      poids_kg: poidsSerie,
     }])
     if (fait < exercice.series) {
       setExoActifTimer({ exerciceId: exercice.id, duree: exercice.repos_secondes })
