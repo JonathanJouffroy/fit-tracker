@@ -49,14 +49,16 @@ export default function Historique() {
 
     // Durées enregistrées — indexées par date + jour_id
     const { data: durees } = await supabase.from('seances_duree')
-      .select('date_seance, jour_id, duree_secondes')
+      .select('date_seance, jour_id, duree_secondes, note')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    // Map date → durée (on prend la plus récente si plusieurs pour la même date)
+    // Map date → {duree, note}
     const dureeParDate = {}
     durees?.forEach((d) => {
-      if (!dureeParDate[d.date_seance]) dureeParDate[d.date_seance] = d.duree_secondes
+      if (!dureeParDate[d.date_seance]) {
+        dureeParDate[d.date_seance] = { duree: d.duree_secondes, note: d.note }
+      }
     })
 
     // Grouper les logs par date → exercice → séries
@@ -77,7 +79,8 @@ export default function Historique() {
       date,
       exercices: Object.values(exos),
       nbSeries: Object.values(exos).reduce((a, e) => a + e.series.length, 0),
-      duree: dureeParDate[date] || null,
+      duree: dureeParDate[date]?.duree || null,
+      note: dureeParDate[date]?.note || null,
     }))
 
     setSeances(result)
@@ -165,6 +168,19 @@ export default function Historique() {
                 {estOuverte && (
                   <div className="mt-3 pt-3 flex flex-col gap-4"
                     style={{ borderTop: '1px solid var(--border)' }}>
+
+                    {/* Note de séance */}
+                    {seance.note && (
+                      <div className="rounded-xl px-3 py-2.5"
+                        style={{ background: 'var(--surface-2)' }}>
+                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
+                          📝 Note de séance
+                        </p>
+                        <p className="text-sm italic" style={{ color: 'var(--text)' }}>{seance.note}</p>
+                      </div>
+                    )}
+
+                    {/* Exercices */}
                     {seance.exercices.map((exo, i) => (
                       <div key={i}>
                         <p className="font-medium text-sm mb-2" style={{ color: 'var(--text)' }}>
