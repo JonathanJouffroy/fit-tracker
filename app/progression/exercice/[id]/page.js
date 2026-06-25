@@ -3,6 +3,91 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 
+// Génère 4 valeurs d'axe Y régulièrement espacées entre min et max
+function ticksY(min, max, nb = 4) {
+  const step = Math.ceil((max - min) / (nb - 1) / 5) * 5 || 5
+  return Array.from({ length: nb }, (_, i) => Math.round(min + step * i))
+}
+
+function Graphique({ titre, sousTitre, sessions, getValue, couleur, unite }) {
+  if (sessions.length === 0) return null
+
+  const valeurs = sessions.map(getValue).filter((v) => v !== null && v > 0)
+  if (valeurs.length === 0) return null
+
+  const maxVal = Math.max(...valeurs)
+  const minVal = Math.min(...valeurs)
+  // Plancher légèrement sous le min pour que la plus petite barre soit visible
+  const plancher = Math.max(0, minVal - (maxVal - minVal) * 0.2)
+  const ticks = ticksY(Math.round(plancher), Math.round(maxVal))
+  const graphMax = ticks[ticks.length - 1]
+  const graphMin = ticks[0]
+  const range = graphMax - graphMin || 1
+
+  const GRAPH_H = 120 // hauteur de la zone des barres en px
+
+  function hauteur(v) {
+    return Math.max(4, Math.round(((v - graphMin) / range) * GRAPH_H))
+  }
+
+  function labelDate(dateStr) {
+    return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+  }
+
+  return (
+    <div className="card mb-4">
+      <p className="font-semibold text-sm mb-0.5" style={{ color: 'var(--text)' }}>{titre}</p>
+      {sousTitre && <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{sousTitre}</p>}
+
+      <div className="flex gap-2">
+        {/* Axe Y */}
+        <div className="flex flex-col justify-between items-end pb-5" style={{ height: `${GRAPH_H + 4}px`, minWidth: '36px' }}>
+          {[...ticks].reverse().map((t) => (
+            <span key={t} className="text-[10px] tabular-nums leading-none" style={{ color: 'var(--text-faint)' }}>
+              {t}{unite}
+            </span>
+          ))}
+        </div>
+
+        {/* Barres */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex items-end gap-1 flex-1" style={{ height: `${GRAPH_H}px` }}>
+            {sessions.map((s) => {
+              const v = getValue(s)
+              if (!v || v <= 0) return (
+                <div key={s.date} className="flex-1 flex flex-col items-center justify-end" style={{ height: `${GRAPH_H}px` }}>
+                  <div className="w-full rounded-t" style={{ height: '2px', background: 'var(--surface-2)' }} />
+                </div>
+              )
+              const isPR = v === maxVal
+              return (
+                <div key={s.date} className="flex-1 flex flex-col items-center justify-end" style={{ height: `${GRAPH_H}px` }}>
+                  <div className="w-full rounded-t transition-all"
+                    style={{ height: `${hauteur(v)}px`, background: isPR ? couleur : couleur + '88' }} />
+                </div>
+              )
+            })}
+          </div>
+          {/* Axe X */}
+          <div className="flex gap-1 mt-1">
+            {sessions.map((s) => (
+              <div key={s.date} className="flex-1 text-center">
+                <span className="text-[9px] leading-tight" style={{ color: 'var(--text-faint)' }}>
+                  {labelDate(s.date)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-center mt-2" style={{ color: 'var(--text-faint)' }}>
+        Barre plus foncée = record
+      </p>
+    </div>
+  )
+}
+
 export default function ProgressionExercice() {
   const { id: exerciceId } = useParams()
   const searchParams = useSearchParams()
@@ -20,15 +105,12 @@ export default function ProgressionExercice() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Récupérer tous les IDs (le même exercice peut exister sur plusieurs jours)
     const idsParam = searchParams.get('ids')
     const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
 
-    // Nom de l'exercice
     const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
     setNomExercice(exo?.nom || '')
 
-    // Logs pour TOUS les IDs de cet exercice
     const { data: logs } = await supabase
       .from('seances_log')
       .select('date_seance, exercice_id, poids_kg, repetitions_faites, serie_numero')
@@ -36,7 +118,6 @@ export default function ProgressionExercice() {
       .in('exercice_id', ids)
       .order('date_seance', { ascending: true })
 
-    // Grouper par date
     const parDate = {}
     logs?.forEach((log) => {
       const d = log.date_seance
@@ -62,12 +143,6 @@ export default function ProgressionExercice() {
   const derniere = sessionsAvecPoids[sessionsAvecPoids.length - 1]
   const avantDerniere = sessionsAvecPoids[sessionsAvecPoids.length - 2]
   const progression = derniere && avantDerniere ? derniere.poids_max - avantDerniere.poids_max : null
-  const maxPoids = pr || 1
-  const maxVolume = Math.max(...sessions.map((s) => s.volume), 1)
-
-  function labelDate(dateStr) {
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-  }
 
   return (
     <div>
@@ -104,56 +179,26 @@ export default function ProgressionExercice() {
             </div>
           </div>
 
-          {/* Graphique poids max */}
-          {sessionsAvecPoids.length > 0 && (
-            <div className="card mb-4">
-              <p className="font-semibold text-sm mb-3" style={{ color: 'var(--text)' }}>Poids max par séance (kg)</p>
-              <div className="flex items-end gap-1" style={{ height: '100px' }}>
-                {sessionsAvecPoids.map((s) => {
-                  const hauteur = Math.round((s.poids_max / maxPoids) * 80)
-                  const isPR = s.poids_max === pr
-                  return (
-                    <div key={s.date} className="flex-1 flex flex-col items-center gap-1">
-                      <p className="text-[9px] tabular-nums" style={{ color: 'var(--text-faint)' }}>{s.poids_max}kg</p>
-                      <div className="w-full flex items-end" style={{ height: '72px' }}>
-                        <div className="w-full rounded-t"
-                          style={{ height: `${hauteur}px`, background: isPR ? 'var(--orange)' : '#FFB299' }} />
-                      </div>
-                      <p className="text-[9px] text-center leading-tight" style={{ color: 'var(--text-faint)' }}>
-                        {labelDate(s.date)}
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="text-xs text-center mt-2" style={{ color: 'var(--text-faint)' }}>
-                Barre orange = ton record
-              </p>
-            </div>
-          )}
+          {/* Graphique poids max avec axe Y */}
+          <Graphique
+            titre="Poids max par séance"
+            sessions={sessionsAvecPoids}
+            getValue={(s) => s.poids_max}
+            couleur="var(--orange)"
+            unite="kg"
+          />
 
-          {/* Graphique volume */}
-          {sessions.filter((s) => s.volume > 0).length > 0 && (
-            <div className="card mb-4">
-              <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text)' }}>Volume total (kg)</p>
-              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>séries × répétitions × poids</p>
-              <div className="flex items-end gap-1" style={{ height: '80px' }}>
-                {sessions.filter((s) => s.volume > 0).map((s) => (
-                  <div key={s.date} className="flex-1 flex flex-col items-center gap-1">
-                    <div className="w-full flex items-end" style={{ height: '64px' }}>
-                      <div className="w-full rounded-t"
-                        style={{ height: `${Math.round((s.volume / maxVolume) * 64)}px`, background: '#93C5FD' }} />
-                    </div>
-                    <p className="text-[9px] text-center leading-tight" style={{ color: 'var(--text-faint)' }}>
-                      {labelDate(s.date)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Graphique volume avec axe Y */}
+          <Graphique
+            titre="Volume total par séance"
+            sousTitre="séries × répétitions × poids"
+            sessions={sessions.filter((s) => s.volume > 0)}
+            getValue={(s) => s.volume}
+            couleur="#3B82F6"
+            unite="kg"
+          />
 
-          {/* Historique détaillé */}
+          {/* Historique */}
           <div className="card">
             <p className="font-semibold text-sm mb-3" style={{ color: 'var(--text)' }}>Historique</p>
             <div className="flex flex-col gap-2">
