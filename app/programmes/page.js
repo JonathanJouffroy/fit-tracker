@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { useToast } from '@/app/components/Toast'
 import Header from '@/app/components/Header'
@@ -8,6 +9,7 @@ const JOURS_LABELS = { 1:'Lun', 2:'Mar', 3:'Mer', 4:'Jeu', 5:'Ven', 6:'Sam', 7:'
 
 export default function Programmes() {
   const supabase = createClient()
+  const router = useRouter()
   const toast = useToast()
   const [userId, setUserId] = useState(null)
   const [programmes, setProgrammes] = useState([])
@@ -124,6 +126,7 @@ export default function Programmes() {
 
   return (
     <div>
+      <button onClick={() => router.back()} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
       <Header title="Programmes" subtitle="Templates d'entraînement" />
 
       {/* Créer un programme depuis ma semaine actuelle */}
