@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
+import ScannerCodeBarre from '@/app/components/ScannerCodeBarre'
 
 const TYPES = [
   { value: 'petit-dejeuner', label: 'Petit-déjeuner', icon: '🍳' },
@@ -25,6 +26,7 @@ export default function Repas() {
   const [ingredientsParOption, setIngredientsParOption] = useState({})
   const [optionOuverte, setOptionOuverte] = useState(null)
   const [modeLibre, setModeLibre] = useState(false)
+  const [showScanner, setShowScanner] = useState(false)
   const toast = useToast()
 
   useEffect(() => { charger() }, [])
@@ -73,6 +75,20 @@ export default function Repas() {
     charger()
   }
 
+  // Reçoit le résultat du scan et pré-remplit le formulaire libre
+  function onResultatScan({ nom: nomProduit, kcal, quantite }) {
+    setShowScanner(false)
+    setModeLibre(true)
+    // Pré-remplir le nom et les kcal pour 100g
+    setNom(nomProduit)
+    if (kcal) {
+      // Les kcal Open Food Facts sont pour 100g — on le note dans le nom
+      setNom(`${nomProduit} (100g)`)
+      setKcalLibre(String(kcal))
+    }
+    toast(`Produit trouvé : ${nomProduit} 📦`)
+  }
+
   async function toggleFait(r) {
     await supabase.from('repas').update({ fait: !r.fait }).eq('id', r.id)
     charger()
@@ -87,6 +103,14 @@ export default function Repas() {
 
   return (
     <div>
+      {/* Scanner en plein écran */}
+      {showScanner && (
+        <ScannerCodeBarre
+          onResultat={onResultatScan}
+          onFermer={() => setShowScanner(false)}
+        />
+      )}
+
       <Header title="Repas du jour" subtitle={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} />
 
       <div className="flex gap-2 flex-wrap mb-4">
@@ -147,6 +171,21 @@ export default function Repas() {
 
       {(optionsDuType.length === 0 || modeLibre) && (
         <form onSubmit={ajouterRepasLibre} className="card flex flex-col gap-3 mb-6">
+          {/* Bouton scanner */}
+          <button
+            type="button"
+            onClick={() => setShowScanner(true)}
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-medium border"
+            style={{ borderColor: 'var(--orange)', color: 'var(--orange)', background: 'var(--orange-light)' }}>
+            <span>📷</span> Scanner un code-barres
+          </button>
+
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>ou saisir manuellement</span>
+            <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+          </div>
+
           <input value={nom} onChange={(e) => setNom(e.target.value)}
             placeholder="Ex: Poulet riz brocolis" className="input" required />
           <div className="flex gap-2 items-end">
