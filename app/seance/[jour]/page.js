@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import RestTimer from '@/app/components/RestTimer'
+import TimerSeance from '@/app/components/TimerSeance'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import { useToast } from '@/app/components/Toast'
 import { calculerCaloriesExercice } from '@/lib/calculs'
@@ -22,6 +23,7 @@ export default function SeanceJour() {
   const [userId, setUserId] = useState(null)
   const [seriesFaites, setSeriesFaites] = useState({})
   const [poidsSerieEnCours, setPoidsSerieEnCours] = useState({})
+  const [seanceCommencee, setSeanceCommencee] = useState(false)
   const [nomsExistants, setNomsExistants] = useState([])
 
   // Map nom → liste d'IDs pour construire le lien progression
@@ -176,6 +178,7 @@ export default function SeanceJour() {
   async function terminerSerie(exercice) {
     const fait = (seriesFaites[exercice.id] || 0) + 1
     setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
+    if (!seanceCommencee) setSeanceCommencee(true) // démarre le timer au premier clic
     const poidsSerie = parseFloat(poidsSerieEnCours[exercice.id]) || null
     await supabase.from('seances_log').insert([{
       user_id: userId,
@@ -206,6 +209,8 @@ export default function SeanceJour() {
     <div>
       <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
       <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
+
+      <TimerSeance actif={seanceCommencee} />
 
       {!poidsCorps && (
         <p className="text-xs mb-3" style={{ color: 'var(--orange)' }}>
