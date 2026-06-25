@@ -3,6 +3,16 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 
+function formatDuree(secondes) {
+  if (!secondes) return null
+  const h = Math.floor(secondes / 3600)
+  const m = Math.floor((secondes % 3600) / 60)
+  const s = secondes % 60
+  if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}min`
+  if (m > 0) return `${m}min ${s.toString().padStart(2, '0')}s`
+  return `${s}s`
+}
+
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -11,10 +21,10 @@ function formatDate(dateStr) {
 
 export default function Historique() {
   const supabase = createClient()
-  const [seances, setSeances] = useState([]) // [{date, exercices: [{nom, series:[{serie, reps, poids}]}]}]
+  const [seances, setSeances] = useState([])
   const [loading, setLoading] = useState(true)
   const [seanceOuverte, setSeanceOuverte] = useState(null)
-  const [mois, setMois] = useState(null) // null = tout, ou 'YYYY-MM'
+  const [mois, setMois] = useState(null)
 
   useEffect(() => { charger() }, [])
 
@@ -23,13 +33,13 @@ export default function Historique() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Charger les exercices pour avoir les noms actuels (fallback)
+    // Exercices pour fallback nom
     const { data: tousExos } = await supabase
       .from('exercices').select('id, nom').eq('user_id', user.id)
     const nomParId = {}
     tousExos?.forEach((e) => { nomParId[e.id] = e.nom })
 
-    // Charger les logs sans join RLS (utilise exercice_nom snapshot en priorité)
+    // Logs de séances
     const { data: logs } = await supabase.from('seances_log')
       .select('date_seance, exercice_id, exercice_nom, serie_numero, repetitions_faites, poids_kg')
       .eq('user_id', user.id)
@@ -37,12 +47,23 @@ export default function Historique() {
       .order('exercice_id')
       .order('serie_numero')
 
-    // Grouper par date → exercice → séries
+    // Durées enregistrées — indexées par date + jour_id
+    const { data: durees } = await supabase.from('seances_duree')
+      .select('date_seance, jour_id, duree_secondes')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    // Map date → durée (on prend la plus récente si plusieurs pour la même date)
+    const dureeParDate = {}
+    durees?.forEach((d) => {
+      if (!dureeParDate[d.date_seance]) dureeParDate[d.date_seance] = d.duree_secondes
+    })
+
+    // Grouper les logs par date → exercice → séries
     const parDate = {}
     logs?.forEach((log) => {
       const date = log.date_seance
       if (!parDate[date]) parDate[date] = {}
-      // Utilise le snapshot du nom au moment du log, sinon le nom actuel
       const nomExo = log.exercice_nom || nomParId[log.exercice_id] || `Exercice #${log.exercice_id}`
       if (!parDate[date][log.exercice_id]) parDate[date][log.exercice_id] = { nom: nomExo, series: [] }
       parDate[date][log.exercice_id].series.push({
@@ -56,18 +77,15 @@ export default function Historique() {
       date,
       exercices: Object.values(exos),
       nbSeries: Object.values(exos).reduce((a, e) => a + e.series.length, 0),
+      duree: dureeParDate[date] || null,
     }))
 
     setSeances(result)
     setLoading(false)
   }
 
-  // Mois disponibles pour le filtre
   const moisDisponibles = [...new Set(seances.map((s) => s.date.slice(0, 7)))].sort().reverse()
-
-  const seancesFiltrees = mois
-    ? seances.filter((s) => s.date.startsWith(mois))
-    : seances
+  const seancesFiltrees = mois ? seances.filter((s) => s.date.startsWith(mois)) : seances
 
   function labelMois(ym) {
     const [y, m] = ym.split('-')
@@ -78,7 +96,6 @@ export default function Historique() {
     <div>
       <Header title="Historique" subtitle="Toutes tes séances passées" />
 
-      {/* Filtre par mois */}
       {moisDisponibles.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
           <button onClick={() => setMois(null)}
@@ -128,10 +145,18 @@ export default function Historique() {
                       <p className="font-semibold capitalize" style={{ color: 'var(--text)' }}>
                         {formatDate(seance.date)}
                       </p>
-                      <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {seance.exercices.length} exercice{seance.exercices.length > 1 ? 's' : ''}
-                        {' · '}{seance.nbSeries} série{seance.nbSeries > 1 ? 's' : ''}
-                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                          {seance.exercices.length} exercice{seance.exercices.length > 1 ? 's' : ''}
+                          {' · '}{seance.nbSeries} série{seance.nbSeries > 1 ? 's' : ''}
+                        </p>
+                        {seance.duree && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                            style={{ background: 'var(--orange-light)', color: 'var(--orange)' }}>
+                            ⏱️ {formatDuree(seance.duree)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <span style={{ color: 'var(--text-faint)' }}>{estOuverte ? '▲' : '▼'}</span>
                   </div>
