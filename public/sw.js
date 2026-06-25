@@ -1,5 +1,5 @@
 // ⚠️ Change ce numéro à chaque déploiement important pour forcer la mise à jour
-const CACHE_VERSION = 'v2'
+const CACHE_VERSION = self.__SW_VERSION__ || 'dev'
 const CACHE_NAME = `fit-tracker-${CACHE_VERSION}`
 
 const STATIC_ASSETS = [
