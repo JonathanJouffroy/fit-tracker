@@ -210,7 +210,7 @@ export default function SeanceJour() {
       <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
       <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
 
-      <TimerSeance actif={seanceCommencee} />
+      <TimerSeance actif={seanceCommencee} jourId={jourId} />
 
       {!poidsCorps && (
         <p className="text-xs mb-3" style={{ color: 'var(--orange)' }}>
