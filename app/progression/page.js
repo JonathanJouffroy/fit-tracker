@@ -48,15 +48,11 @@ export default function Progression() {
     })
 
     // Pour chaque nom unique, calculer PR, tendance, nb séances
-    // On garde aussi les IDs associés pour le lien vers la page détail
     const nomsUniques = [...new Set(exos.map((e) => e.nom))].sort()
 
     const resultats = nomsUniques.map((nom) => {
-      // Tous les IDs d'exercices avec ce nom (ex: Squat lundi + Squat mercredi)
       const idsAvecCeNom = exos.filter((e) => e.nom === nom).map((e) => e.id)
-      // Le premier ID sert de lien vers la page progression détaillée
       const idRepresentatif = idsAvecCeNom[0]
-
       const logsNom = logsParNom[nom] || []
 
       if (logsNom.length === 0) {
@@ -65,14 +61,17 @@ export default function Progression() {
 
       const pr = Math.max(...logsNom.map((l) => l.poids_kg))
 
-      // Grouper par date pour avoir le poids max par séance
-      const parDate = {}
+      // Grouper par date + exercice_id pour distinguer Squat lundi vs Squat jeudi
+      // même s'ils sont faits le même jour calendaire
+      const parSession = {}
       logsNom.forEach((l) => {
-        if (!parDate[l.date_seance]) parDate[l.date_seance] = []
-        parDate[l.date_seance].push(l.poids_kg)
+        const key = `${l.date_seance}__${l.exercice_id}`
+        if (!parSession[key]) parSession[key] = { date: l.date_seance, poids: [] }
+        parSession[key].poids.push(l.poids_kg)
       })
-      const sessions = Object.entries(parDate)
-        .map(([date, poids]) => ({ date, poidsMax: Math.max(...poids) }))
+
+      const sessions = Object.values(parSession)
+        .map((s) => ({ date: s.date, poidsMax: Math.max(...s.poids) }))
         .sort((a, b) => a.date.localeCompare(b.date))
 
       const dernierPoids = sessions[sessions.length - 1]?.poidsMax || null
