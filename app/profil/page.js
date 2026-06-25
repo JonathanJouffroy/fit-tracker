@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { calculerCaloriesCible, calculerCaloriesExercice, NIVEAUX_ACTIVITE, OBJECTIFS } from '@/lib/calculs'
 import JaugeCalories from '@/app/components/JaugeCalories'
+import CourbeObjectifPoids from '@/app/components/CourbeObjectifPoids'
 import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
 
@@ -40,6 +41,10 @@ export default function Profil() {
   const [caloriesMois, setCaloriesMois] = useState([])    // [{date, consomme, brule}]
   const [loading, setLoading] = useState(true)
   const [editionProfil, setEditionProfil] = useState(false)
+  const [poidsCible, setPoidsCible] = useState('')
+  const [dateCible, setDateCible] = useState('')
+  const [objectifPoidsId, setObjectifPoidsId] = useState(null)
+  const [showFormObjectif, setShowFormObjectif] = useState(false)
   const toast = useToast()
 
   useEffect(() => { chargerTout() }, [])
@@ -143,7 +148,30 @@ export default function Profil() {
     }))
     setCaloriesMois(statMois)
 
+    // ---- Objectif de poids ----
+    const { data: objPoids } = await supabase.from('objectif_poids')
+      .select('*').eq('user_id', user.id).single()
+    if (objPoids) {
+      setPoidsCible(objPoids.poids_cible_kg)
+      setDateCible(objPoids.date_cible)
+      setObjectifPoidsId(objPoids.id)
+    }
+
     setLoading(false)
+  }
+
+  async function enregistrerObjectifPoids(e) {
+    e.preventDefault()
+    if (!poidsCible || !dateCible || !userId) return
+    await supabase.from('objectif_poids').upsert({
+      user_id: userId,
+      poids_cible_kg: Number(poidsCible),
+      date_cible: dateCible,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' })
+    setShowFormObjectif(false)
+    toast('Objectif enregistré ✓')
+    chargerTout()
   }
 
   async function enregistrerMesure(e) {
@@ -191,6 +219,55 @@ export default function Profil() {
                 {caloriesBrulees > 0 && <span className="text-green-600 font-medium">· 🔥 {caloriesBrulees} kcal brûlées</span>}
               </div>
             </div>
+          )}
+
+          {/* Courbe objectif de poids */}
+          {poidsCible && dateCible && historique.length > 0 && (
+            <CourbeObjectifPoids
+              mesures={[...historique].reverse()}
+              poidsDepart={historique[historique.length - 1]?.poids_kg || Number(poids)}
+              poidsCible={Number(poidsCible)}
+              dateDebut={historique[historique.length - 1]?.date_mesure || new Date().toISOString().split('T')[0]}
+              dateCible={dateCible}
+            />
+          )}
+
+          {/* Formulaire objectif de poids */}
+          {!showFormObjectif ? (
+            <button onClick={() => setShowFormObjectif(true)}
+              className="w-full text-sm underline text-center mb-4"
+              style={{ color: 'var(--text-muted)' }}>
+              {poidsCible ? `Objectif : ${poidsCible}kg avant le ${new Date(dateCible + 'T12:00:00').toLocaleDateString('fr-FR')} · Modifier` : '+ Définir un objectif de poids'}
+            </button>
+          ) : (
+            <form onSubmit={enregistrerObjectifPoids} className="card mb-4 flex flex-col gap-3">
+              <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Objectif de poids</p>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="label">Poids cible (kg)</label>
+                  <input type="number" step="0.1" value={poidsCible}
+                    onChange={(e) => setPoidsCible(e.target.value)}
+                    className="input" placeholder="65" required />
+                </div>
+                <div className="flex-1">
+                  <label className="label">Date limite</label>
+                  <input type="date" value={dateCible}
+                    onChange={(e) => setDateCible(e.target.value)}
+                    className="input" required
+                    min={new Date().toISOString().split('T')[0]} />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setShowFormObjectif(false)}
+                  className="flex-1 py-2 rounded-xl text-sm font-medium"
+                  style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+                  Annuler
+                </button>
+                <button type="submit" className="flex-1 btn-primary text-sm py-2">
+                  Enregistrer
+                </button>
+              </div>
+            </form>
           )}
 
           {/* Graphique 7 derniers jours */}
