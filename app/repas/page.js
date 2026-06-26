@@ -22,6 +22,9 @@ export default function Repas() {
   const [nom, setNom] = useState('')
   const [type, setType] = useState('petit-dejeuner')
   const [kcalLibre, setKcalLibre] = useState('')
+  const [proteinesLibre, setProteinesLibre] = useState('')
+  const [glucidesLibre, setGlucidesLibre] = useState('')
+  const [lipidesLibre, setLipidesLibre] = useState('')
   const [optionsParType, setOptionsParType] = useState({})
   const [ingredientsParOption, setIngredientsParOption] = useState({})
   const [optionOuverte, setOptionOuverte] = useState(null)
@@ -37,7 +40,8 @@ export default function Repas() {
     if (!user) return
     setUserId(user.id)
 
-    const { data } = await supabase.from('repas').select('*')
+    const { data } = await supabase.from('repas')
+      .select('*, options_repas(kcal, proteines_g, glucides_g, lipides_g)')
       .eq('user_id', user.id).eq('date_repas', aujourdHui()).order('created_at')
     setRepas(data || [])
 
@@ -69,23 +73,24 @@ export default function Repas() {
       user_id: userId, nom, type,
       date_repas: aujourdHui(),
       kcal_libre: kcalLibre ? Number(kcalLibre) : null,
+      proteines_libre: proteinesLibre ? Number(proteinesLibre) : null,
+      glucides_libre: glucidesLibre ? Number(glucidesLibre) : null,
+      lipides_libre: lipidesLibre ? Number(lipidesLibre) : null,
     }])
-    setNom(''); setKcalLibre('')
+    setNom(''); setKcalLibre(''); setProteinesLibre(''); setGlucidesLibre(''); setLipidesLibre('')
     toast('Repas ajouté ✓')
     charger()
   }
 
   // Reçoit le résultat du scan et pré-remplit le formulaire libre
-  function onResultatScan({ nom: nomProduit, kcal, quantite }) {
+  function onResultatScan({ nom: nomProduit, kcal, proteines, glucides, lipides, quantite }) {
     setShowScanner(false)
     setModeLibre(true)
-    // Pré-remplir le nom et les kcal pour 100g
-    setNom(nomProduit)
-    if (kcal) {
-      // Les kcal Open Food Facts sont pour 100g — on le note dans le nom
-      setNom(`${nomProduit} (100g)`)
-      setKcalLibre(String(kcal))
-    }
+    setNom(kcal ? `${nomProduit} (100g)` : nomProduit)
+    if (kcal) setKcalLibre(String(kcal))
+    if (proteines) setProteinesLibre(String(proteines))
+    if (glucides) setGlucidesLibre(String(glucides))
+    if (lipides) setLipidesLibre(String(lipides))
     toast(`Produit trouvé : ${nomProduit} 📦`)
   }
 
@@ -190,22 +195,77 @@ export default function Repas() {
             placeholder="Ex: Poulet riz brocolis" className="input" required />
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="label">Calories (optionnel)</label>
+              <label className="label">Calories</label>
               <input type="number" min="0" value={kcalLibre}
                 onChange={(e) => setKcalLibre(e.target.value)}
-                placeholder="Ex: 450" className="input" />
+                placeholder="kcal" className="input" />
             </div>
-            <button type="submit" className="btn-primary flex-1 py-2">Ajouter</button>
-            {optionsDuType.length > 0 && (
-              <button type="button" onClick={() => setModeLibre(false)}
-                className="px-3 py-2 rounded-xl text-sm font-medium"
-                style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
-                Annuler
-              </button>
-            )}
+            <div className="flex-1">
+              <label className="label">Protéines (g)</label>
+              <input type="number" min="0" step="0.1" value={proteinesLibre}
+                onChange={(e) => setProteinesLibre(e.target.value)}
+                placeholder="g" className="input" />
+            </div>
+            <div className="flex-1">
+              <label className="label">Glucides (g)</label>
+              <input type="number" min="0" step="0.1" value={glucidesLibre}
+                onChange={(e) => setGlucidesLibre(e.target.value)}
+                placeholder="g" className="input" />
+            </div>
+            <div className="flex-1">
+              <label className="label">Lipides (g)</label>
+              <input type="number" min="0" step="0.1" value={lipidesLibre}
+                onChange={(e) => setLipidesLibre(e.target.value)}
+                placeholder="g" className="input" />
+            </div>
           </div>
+          <button type="submit" className="btn-primary w-full py-2">Ajouter</button>
+          {optionsDuType.length > 0 && (
+            <button type="button" onClick={() => setModeLibre(false)}
+              className="w-full py-2 rounded-xl text-sm font-medium"
+              style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+              Annuler
+            </button>
+          )}
         </form>
       )}
+
+      {/* Résumé macros du jour */}
+      {!loading && repas.length > 0 && (() => {
+        const totaux = repas.reduce((acc, r) => {
+          const kcal = r.options_repas?.kcal || r.kcal_libre || 0
+          const p = r.options_repas?.proteines_g || r.proteines_libre || 0
+          const g = r.options_repas?.glucides_g || r.glucides_libre || 0
+          const l = r.options_repas?.lipides_g || r.lipides_libre || 0
+          return { kcal: acc.kcal + kcal, p: acc.p + p, g: acc.g + g, l: acc.l + l }
+        }, { kcal: 0, p: 0, g: 0, l: 0 })
+
+        if (totaux.kcal === 0 && totaux.p === 0) return null
+
+        return (
+          <div className="card mb-4 py-3">
+            <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Total du jour</p>
+            <div className="flex justify-between">
+              <div className="text-center">
+                <p className="text-base font-bold" style={{ color: 'var(--orange)' }}>{Math.round(totaux.kcal)}</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>kcal</p>
+              </div>
+              <div className="text-center">
+                <p className="text-base font-bold" style={{ color: 'var(--text)' }}>{Math.round(totaux.p)}g</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>Protéines</p>
+              </div>
+              <div className="text-center">
+                <p className="text-base font-bold" style={{ color: 'var(--text)' }}>{Math.round(totaux.g)}g</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>Glucides</p>
+              </div>
+              <div className="text-center">
+                <p className="text-base font-bold" style={{ color: 'var(--text)' }}>{Math.round(totaux.l)}g</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>Lipides</p>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {loading ? <p style={{ color: 'var(--text-muted)' }}>Chargement...</p> : (
         <div className="flex flex-col gap-3">
