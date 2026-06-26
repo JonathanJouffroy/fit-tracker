@@ -137,8 +137,11 @@ export default function ProgressionExercice() {
         const date = key.split('__')[0]
         const avecPoids = lignes.filter((l) => l.poids_kg && l.poids_kg > 0)
         const poids_max = avecPoids.length > 0 ? Math.max(...avecPoids.map((l) => l.poids_kg)) : null
+        // Reps du set avec le poids le plus lourd (pour le 1RM)
+        const setMax = avecPoids.find((l) => l.poids_kg === poids_max)
+        const reps_max = setMax?.repetitions_faites || null
         const volume = avecPoids.reduce((acc, l) => acc + l.poids_kg * (l.repetitions_faites || 0), 0)
-        return { date, poids_max, volume: Math.round(volume), nb_series: lignes.length }
+        return { date, poids_max, reps_max, volume: Math.round(volume), nb_series: lignes.length }
       })
 
     setSessions(sessionsCalc)
@@ -152,6 +155,19 @@ export default function ProgressionExercice() {
   const derniere = sessionsAvecPoids[sessionsAvecPoids.length - 1]
   const avantDerniere = sessionsAvecPoids[sessionsAvecPoids.length - 2]
   const progression = derniere && avantDerniere ? derniere.poids_max - avantDerniere.poids_max : null
+
+  // 1RM estimé via formule d'Epley : poids × (1 + reps/30)
+  // On utilise le meilleur set connu (poids max avec le nombre de reps loguées)
+  const rm1Estime = (() => {
+    if (!sessions.length) return null
+    let meilleur = 0
+    sessions.forEach((s) => {
+      if (!s.poids_max || !s.reps_max) return
+      const rm = s.poids_max * (1 + s.reps_max / 30)
+      if (rm > meilleur) meilleur = rm
+    })
+    return meilleur > 0 ? Math.round(meilleur) : null
+  })()
 
   return (
     <div>
@@ -169,11 +185,17 @@ export default function ProgressionExercice() {
       ) : (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="card text-center py-3">
               <p className="text-xl font-bold" style={{ color: 'var(--orange)' }}>{pr ? `${pr}kg` : '—'}</p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Record (PR)</p>
             </div>
+            <div className="card text-center py-3">
+              <p className="text-xl font-bold" style={{ color: '#8B5CF6' }}>{rm1Estime ? `${rm1Estime}kg` : '—'}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>1RM estimé</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-6">
             <div className="card text-center py-3">
               <p className="text-xl font-bold" style={{
                 color: progression === null ? 'var(--text-faint)' : progression >= 0 ? '#22c55e' : '#ef4444'
@@ -187,6 +209,11 @@ export default function ProgressionExercice() {
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Séances</p>
             </div>
           </div>
+          {rm1Estime && (
+            <p className="text-xs text-center mb-4" style={{ color: 'var(--text-faint)' }}>
+              1RM estimé via formule d'Epley · poids × (1 + reps/30)
+            </p>
+          )}
 
           {/* Graphique poids max avec axe Y */}
           <Graphique
