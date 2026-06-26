@@ -44,9 +44,18 @@ export default function ScannerCodeBarre({ onResultat, onFermer }) {
             const kcalPour100g = produit.nutriments?.['energy-kcal_100g']
               || produit.nutriments?.['energy-kcal']
               || null
+            const proteines = produit.nutriments?.['proteins_100g'] || null
+            const glucides = produit.nutriments?.['carbohydrates_100g'] || null
+            const lipides = produit.nutriments?.['fat_100g'] || null
             const quantite = produit.serving_size || null
 
-            onResultat({ nom, kcal: kcalPour100g ? Math.round(kcalPour100g) : null, quantite, code })
+            onResultat({
+              nom, quantite, code,
+              kcal: kcalPour100g ? Math.round(kcalPour100g) : null,
+              proteines: proteines ? Math.round(proteines * 10) / 10 : null,
+              glucides: glucides ? Math.round(glucides * 10) / 10 : null,
+              lipides: lipides ? Math.round(lipides * 10) / 10 : null,
+            })
           } catch {
             setStatut('erreur')
             setMessageErreur('Impossible de contacter Open Food Facts.')
