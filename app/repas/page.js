@@ -157,6 +157,7 @@ export default function Repas() {
   }
 
   async function supprimer(id) {
+    if (!confirm('Supprimer ce repas ?')) return
     await supabase.from('repas').delete().eq('id', id)
     toast('Repas supprimé')
     charger()
