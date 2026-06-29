@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
 import ScannerCodeBarre from '@/app/components/ScannerCodeBarre'
+import { SkeletonRepas } from '@/app/components/Skeleton'
 
 const TYPES = [
   { value: 'petit-dejeuner', label: 'Petit-déjeuner', icon: '🍳' },
@@ -334,7 +335,11 @@ export default function Repas() {
       )}
 
       {/* Liste repas du jour */}
-      {loading ? <p style={{ color: 'var(--text-muted)' }}>Chargement...</p> : (
+      {loading ? (
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }).map((_, i) => <SkeletonRepas key={i} />)}
+        </div>
+      ) : (
         <div className="flex flex-col gap-3">
           {TYPES.map((t) => {
             const items = repas.filter((r) => r.type === t.value)
