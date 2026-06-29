@@ -135,13 +135,14 @@ export default function Repas() {
   async function ajouterRepasLibre(e) {
     e.preventDefault()
     if (!nom.trim() || !userId) return
+    const ratio = kcalLibre && quantiteG ? Number(quantiteG) / 100 : 1
     await supabase.from('repas').insert([{
       user_id: userId, nom, type,
       date_repas: aujourdHui(),
-      kcal_libre: kcalLibre ? Number(kcalLibre) : null,
-      proteines_libre: proteinesLibre ? Number(proteinesLibre) : null,
-      glucides_libre: glucidesLibre ? Number(glucidesLibre) : null,
-      lipides_libre: lipidesLibre ? Number(lipidesLibre) : null,
+      kcal_libre: kcalLibre ? Math.round(Number(kcalLibre) * ratio) : null,
+      proteines_libre: proteinesLibre ? Math.round(Number(proteinesLibre) * ratio * 10) / 10 : null,
+      glucides_libre: glucidesLibre ? Math.round(Number(glucidesLibre) * ratio * 10) / 10 : null,
+      lipides_libre: lipidesLibre ? Math.round(Number(lipidesLibre) * ratio * 10) / 10 : null,
       quantite_g: quantiteG ? Number(quantiteG) : null,
     }])
     setNom(''); setKcalLibre(''); setProteinesLibre(''); setGlucidesLibre(''); setLipidesLibre(''); setQuantiteG('')
