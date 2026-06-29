@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useToast } from '@/app/components/Toast'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import Header from '@/app/components/Header'
+import { SkeletonListe } from '@/app/components/Skeleton'
 
 const JOURS = [
   { id: 1, nom: 'Lundi' }, { id: 2, nom: 'Mardi' }, { id: 3, nom: 'Mercredi' },
@@ -356,7 +357,8 @@ export default function Programmes() {
         <SauvegarderSemaine userId={userId} supabase={supabase} toast={toast} onSave={charger} />
 
         {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Chargement...</p>
+          <SkeletonListe nb={4} lignes={2} />
+
         ) : (
           <>
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>
