@@ -3,9 +3,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const tabs = [
-  { href: '/', label: 'Semaine', icon: '🏋️' },
+  { href: '/', label: 'Séances', icon: '🏋️' },
   { href: '/progression', label: 'Progrès', icon: '📈' },
-  { href: '/historique', label: 'Historique', icon: '📋' },
   { href: '/repas', label: 'Repas', icon: '🍽️' },
   { href: '/profil', label: 'Profil', icon: '⚖️' },
 ]
