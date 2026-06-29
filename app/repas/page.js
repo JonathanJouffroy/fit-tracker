@@ -5,6 +5,7 @@ import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
 import ScannerCodeBarre from '@/app/components/ScannerCodeBarre'
 import { SkeletonRepas } from '@/app/components/Skeleton'
+import { ErreurChargement } from '@/app/components/Erreur'
 
 const TYPES = [
   { value: 'petit-dejeuner', label: 'Petit-déjeuner', icon: '🍳' },
@@ -25,6 +26,7 @@ function aujourdHui() { return new Date().toISOString().split('T')[0] }
 export default function Repas() {
   const supabase = createClient()
   const toast = useToast()
+  const [erreur, setErreur] = useState(null)
 
   const [userId, setUserId] = useState(null)
   const [repas, setRepas] = useState([])
@@ -59,58 +61,61 @@ export default function Repas() {
 
   async function charger() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setUserId(user.id)
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUserId(user.id)
 
-    // Repas du jour
-    const { data } = await supabase.from('repas')
-      .select('*, options_repas(kcal, proteines_g, glucides_g, lipides_g)')
-      .eq('user_id', user.id).eq('date_repas', aujourdHui()).order('created_at')
-    setRepas(data || [])
+      // Repas du jour
+      const { data } = await supabase.from('repas')
+        .select('*, options_repas(kcal, proteines_g, glucides_g, lipides_g)')
+        .eq('user_id', user.id).eq('date_repas', aujourdHui()).order('created_at')
+      setRepas(data || [])
 
-    // Catalogue complet
-    const { data: options } = await supabase.from('options_repas').select('*').order('objectif_cible').order('ordre')
-    const groupes = {}
-    options?.forEach((o) => { if (!groupes[o.type]) groupes[o.type] = []; groupes[o.type].push(o) })
-    setOptionsParType(groupes)
+      // Catalogue complet
+      const { data: options } = await supabase.from('options_repas').select('*').order('objectif_cible').order('ordre')
+      const groupes = {}
+      options?.forEach((o) => { if (!groupes[o.type]) groupes[o.type] = []; groupes[o.type].push(o) })
+      setOptionsParType(groupes)
 
-    if (options?.length > 0) {
-      const { data: ingredients } = await supabase.from('options_repas_ingredients').select('*').order('ordre')
-      const groupesIng = {}
-      ingredients?.forEach((i) => { if (!groupesIng[i.option_repas_id]) groupesIng[i.option_repas_id] = []; groupesIng[i.option_repas_id].push(i) })
-      setIngredientsParOption(groupesIng)
+      if (options?.length > 0) {
+        const { data: ingredients } = await supabase.from('options_repas_ingredients').select('*').order('ordre')
+        const groupesIng = {}
+        ingredients?.forEach((i) => { if (!groupesIng[i.option_repas_id]) groupesIng[i.option_repas_id] = []; groupesIng[i.option_repas_id].push(i) })
+        setIngredientsParOption(groupesIng)
+      }
+
+      // Profil utilisateur pour les suggestions
+      const { data: profilData } = await supabase.from('profil').select('*').eq('user_id', user.id).single()
+      const { data: mesures } = await supabase.from('mesures').select('poids_kg,taille_cm')
+        .eq('user_id', user.id).order('created_at', { ascending: false }).limit(1)
+
+      if (profilData && mesures?.[0]) {
+        const p = { ...profilData, ...mesures[0] }
+        setProfil(p)
+        const { calculerCaloriesCible } = await import('@/lib/calculs')
+        const { caloriesCible } = calculerCaloriesCible({
+          poids: mesures[0].poids_kg, taille: mesures[0].taille_cm,
+          age: profilData.age, sexe: profilData.sexe,
+          niveauActivite: profilData.niveau_activite, objectif: profilData.objectif,
+        })
+        const caloConso = (data || []).reduce((a, r) => a + (r.options_repas?.kcal || r.kcal_libre || 0), 0)
+        setCaloriesRestantes(caloriesCible - caloConso)
+        const filtrees = (options || []).filter(o =>
+          o.objectif_cible === profilData.objectif || o.objectif_cible === 'tous'
+        )
+        setSuggestions(filtrees)
+      } else {
+        setSuggestions(options || [])
+      }
+    } catch (e) {
+      setErreur(e.message === 'timeout'
+        ? 'Connexion trop lente. Supabase est peut-être indisponible.'
+        : 'Impossible de charger les repas. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
     }
-
-    // Profil utilisateur pour les suggestions
-    const { data: profilData } = await supabase.from('profil').select('*').eq('user_id', user.id).single()
-    const { data: mesures } = await supabase.from('mesures').select('poids_kg,taille_cm')
-      .eq('user_id', user.id).order('created_at', { ascending: false }).limit(1)
-
-    if (profilData && mesures?.[0]) {
-      const p = { ...profilData, ...mesures[0] }
-      setProfil(p)
-
-      // Calculer calories restantes
-      const { calculerCaloriesCible } = await import('@/lib/calculs')
-      const { caloriesCible } = calculerCaloriesCible({
-        poids: mesures[0].poids_kg, taille: mesures[0].taille_cm,
-        age: profilData.age, sexe: profilData.sexe,
-        niveauActivite: profilData.niveau_activite, objectif: profilData.objectif,
-      })
-      const caloConso = (data || []).reduce((a, r) => a + (r.options_repas?.kcal || r.kcal_libre || 0), 0)
-      setCaloriesRestantes(caloriesCible - caloConso)
-
-      // Suggestions filtrées par objectif du profil
-      const filtrees = (options || []).filter(o =>
-        o.objectif_cible === profilData.objectif || o.objectif_cible === 'tous'
-      )
-      setSuggestions(filtrees)
-    } else {
-      setSuggestions(options || [])
-    }
-
-    setLoading(false)
   }
 
   async function choisirOption(option) {
@@ -339,6 +344,8 @@ export default function Repas() {
         <div className="flex flex-col gap-3">
           {Array.from({ length: 3 }).map((_, i) => <SkeletonRepas key={i} />)}
         </div>
+      ) : erreur ? (
+        <ErreurChargement message={erreur} onReessayer={charger} />
       ) : (
         <div className="flex flex-col gap-3">
           {TYPES.map((t) => {
