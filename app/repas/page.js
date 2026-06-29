@@ -5,6 +5,7 @@ import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
 import ScannerCodeBarre from '@/app/components/ScannerCodeBarre'
 import { SkeletonRepas } from '@/app/components/Skeleton'
+import Link from 'next/link'
 import { ErreurChargement } from '@/app/components/Erreur'
 
 const TYPES = [
@@ -49,6 +50,7 @@ export default function Repas() {
   const [proteinesLibre, setProteinesLibre] = useState('')
   const [glucidesLibre, setGlucidesLibre] = useState('')
   const [lipidesLibre, setLipidesLibre] = useState('')
+  const [quantiteG, setQuantiteG] = useState('')
 
   // Suggestions
   const [profil, setProfil] = useState(null) // profil utilisateur
@@ -140,8 +142,9 @@ export default function Repas() {
       proteines_libre: proteinesLibre ? Number(proteinesLibre) : null,
       glucides_libre: glucidesLibre ? Number(glucidesLibre) : null,
       lipides_libre: lipidesLibre ? Number(lipidesLibre) : null,
+      quantite_g: quantiteG ? Number(quantiteG) : null,
     }])
-    setNom(''); setKcalLibre(''); setProteinesLibre(''); setGlucidesLibre(''); setLipidesLibre('')
+    setNom(''); setKcalLibre(''); setProteinesLibre(''); setGlucidesLibre(''); setLipidesLibre(''); setQuantiteG('')
     toast('Repas ajouté ✓')
     charger()
   }
@@ -150,7 +153,7 @@ export default function Repas() {
     setShowScanner(false)
     setModeLibre(true)
     setNom(kcal ? `${nomProduit} (100g)` : nomProduit)
-    if (kcal) setKcalLibre(String(kcal))
+    if (kcal) { setKcalLibre(String(kcal)); setQuantiteG('100') }
     if (proteines) setProteinesLibre(String(proteines))
     if (glucides) setGlucidesLibre(String(glucides))
     if (lipides) setLipidesLibre(String(lipides))
@@ -184,8 +187,15 @@ export default function Repas() {
     <div>
       {showScanner && <ScannerCodeBarre onResultat={onResultatScan} onFermer={() => setShowScanner(false)} />}
 
-      <Header title="Repas du jour"
-        subtitle={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} />
+      <div className="flex items-start justify-between mb-0">
+        <Header title="Repas du jour"
+          subtitle={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} />
+        <Link href="/nutrition"
+          className="text-xs px-3 py-1.5 rounded-full mt-1 font-medium"
+          style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+          📊 Historique
+        </Link>
+      </div>
 
       {/* Onglets */}
       <div className="flex gap-2 mb-4">
@@ -247,6 +257,7 @@ export default function Repas() {
               proteinesLibre={proteinesLibre} setProteinesLibre={setProteinesLibre}
               glucidesLibre={glucidesLibre} setGlucidesLibre={setGlucidesLibre}
               lipidesLibre={lipidesLibre} setLipidesLibre={setLipidesLibre}
+              quantiteG={quantiteG} setQuantiteG={setQuantiteG}
               onSubmit={ajouterRepasLibre}
               onScanner={() => setShowScanner(true)}
               onAnnuler={optionsDuType.length > 0 ? () => setModeLibre(false) : null}
@@ -452,7 +463,14 @@ function CarteOption({ option, ingredients, ouvert, onToggle, onChoisir, calorie
 
 // -------- Formulaire saisie libre --------
 function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteinesLibre, setProteinesLibre,
-  glucidesLibre, setGlucidesLibre, lipidesLibre, setLipidesLibre, onSubmit, onScanner, onAnnuler }) {
+  glucidesLibre, setGlucidesLibre, lipidesLibre, setLipidesLibre, quantiteG, setQuantiteG,
+  onSubmit, onScanner, onAnnuler }) {
+
+  // Recalcul des macros quand la quantité change
+  const kcalAffiche = quantiteG && kcalLibre
+    ? Math.round(Number(kcalLibre) * Number(quantiteG) / 100)
+    : kcalLibre ? Number(kcalLibre) : null
+
   return (
     <form onSubmit={onSubmit} className="card flex flex-col gap-3 mb-6">
       <button type="button" onClick={onScanner}
@@ -469,9 +487,32 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
 
       <input value={nom} onChange={(e) => setNom(e.target.value)}
         placeholder="Ex: Poulet riz brocolis" className="input" required />
+
+      {/* Quantité — avec recalcul auto si macros pour 100g */}
+      {kcalLibre && (
+        <div>
+          <label className="label">Quantité consommée (g)</label>
+          <div className="flex items-center gap-2">
+            <input type="number" min="0" step="1" value={quantiteG}
+              onChange={(e) => setQuantiteG(e.target.value)}
+              placeholder="Ex: 150" className="input flex-1" />
+            {kcalAffiche && quantiteG && Number(quantiteG) !== 100 && (
+              <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--orange)' }}>
+                → {kcalAffiche} kcal
+              </span>
+            )}
+          </div>
+          {quantiteG && Number(quantiteG) !== 100 && (
+            <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
+              Macros recalculées pour {quantiteG}g
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-2">
         <div className="flex-1">
-          <label className="label">Calories</label>
+          <label className="label">Calories{!kcalLibre ? '' : ' (pour 100g)'}</label>
           <input type="number" min="0" value={kcalLibre} onChange={(e) => setKcalLibre(e.target.value)} placeholder="kcal" className="input" />
         </div>
         <div className="flex-1">
