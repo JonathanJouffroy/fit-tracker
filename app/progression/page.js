@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
+import { SkeletonListe } from '@/app/components/Skeleton'
 
 export default function Progression() {
   const supabase = createClient()
@@ -104,7 +105,7 @@ export default function Progression() {
       <Header title="Progression" subtitle="Évolution par exercice" />
 
       {loading ? (
-        <p style={{ color: 'var(--text-muted)' }}>Chargement...</p>
+        <SkeletonListe nb={5} lignes={2} />
       ) : exercices.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-2xl mb-2">📊</p>
