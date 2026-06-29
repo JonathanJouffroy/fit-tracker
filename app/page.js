@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Header from './components/Header'
 import { SkeletonListe } from './components/Skeleton'
+import { ErreurChargement } from './components/Erreur'
 
 export default function Home() {
   const router = useRouter()
@@ -12,6 +13,7 @@ export default function Home() {
   const [jours, setJours] = useState([])
   const [compteurs, setCompteurs] = useState({})
   const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
 
   useEffect(() => {
     verifierEtCharger()
@@ -19,22 +21,34 @@ export default function Home() {
 
   async function verifierEtCharger() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
 
-    // Vérifier que le profil a été rempli (onboarding)
-    const { data: profil } = await supabase.from('profil').select('id').eq('user_id', user.id).single()
-    if (!profil) { router.push('/onboarding'); return }
+      const { data: profil } = await supabase.from('profil').select('id').eq('user_id', user.id).single()
+      if (!profil) { router.push('/onboarding'); return }
 
-    const { data: joursData } = await supabase.from('jours').select('*').order('numero')
-    const { data: exosData } = await supabase.from('exercices').select('jour_id').eq('user_id', user.id)
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+      const [{ data: joursData }, { data: exosData }] = await Promise.race([
+        Promise.all([
+          supabase.from('jours').select('*').order('numero'),
+          supabase.from('exercices').select('jour_id').eq('user_id', user.id),
+        ]),
+        timeout,
+      ])
 
-    const counts = {}
-    exosData?.forEach((e) => { counts[e.jour_id] = (counts[e.jour_id] || 0) + 1 })
-
-    setJours(joursData || [])
-    setCompteurs(counts)
-    setLoading(false)
+      const counts = {}
+      exosData?.forEach((e) => { counts[e.jour_id] = (counts[e.jour_id] || 0) + 1 })
+      setJours(joursData || [])
+      setCompteurs(counts)
+    } catch (e) {
+      setErreur(e.message === 'timeout'
+        ? 'La connexion est trop lente. Supabase est peut-être indisponible.'
+        : 'Impossible de charger les données. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const jourActuelNumero = (() => {
@@ -56,6 +70,8 @@ export default function Home() {
 
       {loading ? (
         <SkeletonListe nb={7} lignes={2} />
+      ) : erreur ? (
+        <ErreurChargement message={erreur} onReessayer={verifierEtCharger} />
       ) : (
         <div className="flex flex-col gap-3">
           {jours.map((jour) => {

@@ -2,6 +2,7 @@ import './globals.css'
 import BottomNav from './components/BottomNav'
 import { ToastProvider } from './components/Toast'
 import PWARegister from './components/PWARegister'
+import { BanniereConnexion } from './components/Erreur'
 
 export const metadata = {
   title: 'Fit Tracker',
@@ -12,9 +13,7 @@ export const metadata = {
     statusBarStyle: 'black-translucent',
     title: 'Fit Tracker',
   },
-  other: {
-    'mobile-web-app-capable': 'yes',
-  },
+  other: { 'mobile-web-app-capable': 'yes' },
 }
 
 export const viewport = {
@@ -30,6 +29,7 @@ export default function RootLayout({ children }) {
       <body>
         <PWARegister />
         <ToastProvider>
+          <BanniereConnexion />
           <main className="max-w-md mx-auto min-h-screen pb-24 px-4 pt-6">
             {children}
           </main>
