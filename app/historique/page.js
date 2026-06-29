@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
+import CartePartage from '@/app/components/CartePartage'
+import { calculerCaloriesCardio } from '@/lib/calculs'
 
 function formatDuree(secondes) {
   if (!secondes) return null
@@ -25,9 +27,10 @@ export default function Historique() {
   const supabase = createClient()
   const [seances, setSeances] = useState([])
   const [loading, setLoading] = useState(true)
-  const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
   const [seanceOuverte, setSeanceOuverte] = useState(null)
   const [mois, setMois] = useState(null)
+  const [seanceAPartager, setSeanceAPartager] = useState(null)
 
   useEffect(() => { charger() }, [])
 
@@ -38,61 +41,110 @@ export default function Historique() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-    // Exercices pour fallback nom
-    const { data: tousExos } = await supabase
-      .from('exercices').select('id, nom').eq('user_id', user.id)
-    const nomParId = {}
-    tousExos?.forEach((e) => { nomParId[e.id] = e.nom })
+      // Exercices pour fallback nom + type
+      const { data: tousExos } = await supabase
+        .from('exercices').select('id, nom, type_exercice, activite_cardio').eq('user_id', user.id)
+      const exoParId = {}
+      tousExos?.forEach((e) => { exoParId[e.id] = e })
 
-    // Logs de séances
-    const { data: logs } = await supabase.from('seances_log')
-      .select('date_seance, exercice_id, exercice_nom, serie_numero, repetitions_faites, poids_kg')
-      .eq('user_id', user.id)
-      .order('date_seance', { ascending: false })
-      .order('exercice_id')
-      .order('serie_numero')
+      // Poids du corps le plus récent (pour calcul kcal cardio)
+      const { data: mesures } = await supabase.from('mesures').select('poids_kg')
+        .eq('user_id', user.id).order('created_at', { ascending: false }).limit(1)
+      const poidsCorps = mesures?.[0]?.poids_kg || null
 
-    // Durées enregistrées — indexées par date + jour_id
-    const { data: durees } = await supabase.from('seances_duree')
-      .select('date_seance, jour_id, duree_secondes, note')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+      // Logs de séances avec métriques cardio
+      const { data: logs } = await supabase.from('seances_log')
+        .select('date_seance, exercice_id, exercice_nom, serie_numero, repetitions_faites, poids_kg, duree_minutes, distance_m, denivele_m, nb_sauts, note_cardio')
+        .eq('user_id', user.id)
+        .order('date_seance', { ascending: false })
+        .order('exercice_id')
+        .order('serie_numero')
 
-    // Map date → {duree, note}
-    const dureeParDate = {}
-    durees?.forEach((d) => {
-      if (!dureeParDate[d.date_seance]) {
-        dureeParDate[d.date_seance] = { duree: d.duree_secondes, note: d.note }
-      }
-    })
+      // Durées + notes
+      const { data: durees } = await supabase.from('seances_duree')
+        .select('date_seance, duree_secondes, note')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
 
-    // Grouper les logs par date → exercice → séries
-    const parDate = {}
-    logs?.forEach((log) => {
-      const date = log.date_seance
-      if (!parDate[date]) parDate[date] = {}
-      const nomExo = log.exercice_nom || nomParId[log.exercice_id] || `Exercice #${log.exercice_id}`
-      if (!parDate[date][log.exercice_id]) parDate[date][log.exercice_id] = { nom: nomExo, series: [] }
-      parDate[date][log.exercice_id].series.push({
-        serie: log.serie_numero,
-        reps: log.repetitions_faites,
-        poids: log.poids_kg,
+      const dureeParDate = {}
+      durees?.forEach((d) => {
+        if (!dureeParDate[d.date_seance]) {
+          dureeParDate[d.date_seance] = { duree: d.duree_secondes, note: d.note }
+        }
       })
-    })
 
-    const result = Object.entries(parDate).map(([date, exos]) => ({
-      date,
-      exercices: Object.values(exos),
-      nbSeries: Object.values(exos).reduce((a, e) => a + e.series.length, 0),
-      duree: dureeParDate[date]?.duree || null,
-      note: dureeParDate[date]?.note || null,
-    }))
+      // Grouper les logs par date → exercice_id → séries
+      const parDate = {}
+      logs?.forEach((log) => {
+        const date = log.date_seance
+        if (!parDate[date]) parDate[date] = {}
+        const exoInfo = exoParId[log.exercice_id]
+        const nomExo = log.exercice_nom || exoInfo?.nom || `Exercice #${log.exercice_id}`
+        const isCardio = exoInfo?.type_exercice === 'cardio'
 
-    setSeances(result)
+        if (!parDate[date][log.exercice_id]) {
+          parDate[date][log.exercice_id] = {
+            nom: nomExo,
+            type_exercice: exoInfo?.type_exercice || 'muscu',
+            activite_cardio: exoInfo?.activite_cardio || null,
+            series: [],
+            // Cardio métriques (premier log)
+            duree_minutes: null, distance_m: null, denivele_m: null, nb_sauts: null, note_cardio: null,
+          }
+        }
+
+        if (isCardio && log.duree_minutes) {
+          parDate[date][log.exercice_id].duree_minutes = log.duree_minutes
+          parDate[date][log.exercice_id].distance_m = log.distance_m
+          parDate[date][log.exercice_id].denivele_m = log.denivele_m
+          parDate[date][log.exercice_id].nb_sauts = log.nb_sauts
+          parDate[date][log.exercice_id].note_cardio = log.note_cardio
+        } else {
+          parDate[date][log.exercice_id].series.push({
+            serie: log.serie_numero,
+            reps: log.repetitions_faites,
+            poids: log.poids_kg,
+          })
+        }
+      })
+
+      const result = Object.entries(parDate).map(([date, exosMap]) => {
+        const exercices = Object.values(exosMap)
+        const nbSeries = exercices.reduce((a, e) => a + e.series.length, 0)
+
+        // Calcul kcal total (muscu + cardio)
+        let kcalTotal = 0
+        exercices.forEach((exo) => {
+          if (exo.type_exercice === 'cardio' && exo.duree_minutes && poidsCorps) {
+            kcalTotal += calculerCaloriesCardio({
+              activiteId: exo.activite_cardio,
+              dureeMinutes: exo.duree_minutes,
+              poidsCorps,
+            })
+          }
+        })
+
+        // Poids max par exercice muscu
+        exercices.forEach((exo) => {
+          if (exo.series.length > 0) {
+            const avecPoids = exo.series.filter(s => s.poids)
+            exo.poids_max = avecPoids.length > 0 ? Math.max(...avecPoids.map(s => s.poids)) : null
+          }
+        })
+
+        return {
+          date,
+          exercices,
+          nbSeries,
+          kcalTotal,
+          duree: dureeParDate[date]?.duree || null,
+          note: dureeParDate[date]?.note || null,
+        }
+      })
+
+      setSeances(result)
     } catch (e) {
-      setErreur(e.message === 'timeout'
-        ? 'Connexion trop lente. Supabase est peut-être indisponible.'
-        : 'Impossible de charger l\'historique. Vérifie ta connexion.')
+      setErreur('Impossible de charger l\'historique. Vérifie ta connexion.')
     } finally {
       setLoading(false)
     }
@@ -108,6 +160,14 @@ export default function Historique() {
 
   return (
     <div>
+      {/* Carte de partage en overlay */}
+      {seanceAPartager && (
+        <CartePartage
+          seance={seanceAPartager}
+          onFermer={() => setSeanceAPartager(null)}
+        />
+      )}
+
       <Header title="Historique" subtitle="Toutes tes séances passées" />
 
       {moisDisponibles.length > 1 && (
@@ -151,6 +211,9 @@ export default function Historique() {
         <div className="flex flex-col gap-3">
           {seancesFiltrees.map((seance) => {
             const estOuverte = seanceOuverte === seance.date
+            const exosMuscu = seance.exercices.filter(e => e.type_exercice !== 'cardio')
+            const exosCardio = seance.exercices.filter(e => e.type_exercice === 'cardio')
+
             return (
               <div key={seance.date} className="card">
                 <button
@@ -164,7 +227,7 @@ export default function Historique() {
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                           {seance.exercices.length} exercice{seance.exercices.length > 1 ? 's' : ''}
-                          {' · '}{seance.nbSeries} série{seance.nbSeries > 1 ? 's' : ''}
+                          {seance.nbSeries > 0 && ` · ${seance.nbSeries} série${seance.nbSeries > 1 ? 's' : ''}`}
                         </p>
                         {seance.duree && (
                           <span className="text-xs font-medium px-2 py-0.5 rounded-full"
@@ -172,9 +235,25 @@ export default function Historique() {
                             ⏱️ {formatDuree(seance.duree)}
                           </span>
                         )}
+                        {seance.kcalTotal > 0 && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                            🔥 {seance.kcalTotal} kcal
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <span style={{ color: 'var(--text-faint)' }}>{estOuverte ? '▲' : '▼'}</span>
+                    <div className="flex items-center gap-2">
+                      {/* Bouton partage */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSeanceAPartager(seance) }}
+                        className="text-xl px-2 py-1 rounded-lg"
+                        style={{ background: 'var(--surface-2)' }}
+                        title="Partager sur Instagram">
+                        📤
+                      </button>
+                      <span style={{ color: 'var(--text-faint)' }}>{estOuverte ? '▲' : '▼'}</span>
+                    </div>
                   </div>
                 </button>
 
@@ -182,22 +261,24 @@ export default function Historique() {
                   <div className="mt-3 pt-3 flex flex-col gap-4"
                     style={{ borderTop: '1px solid var(--border)' }}>
 
-                    {/* Note de séance */}
                     {seance.note && (
                       <div className="rounded-xl px-3 py-2.5"
                         style={{ background: 'var(--surface-2)' }}>
-                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>
-                          📝 Note de séance
-                        </p>
-                        <p className="text-sm italic" style={{ color: 'var(--text)' }}>{seance.note}</p>
+                        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>📝 Note</p>
+                        <p className="text-sm italic" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{seance.note}</p>
                       </div>
                     )}
 
-                    {/* Exercices */}
-                    {seance.exercices.map((exo, i) => (
+                    {/* Exercices muscu */}
+                    {exosMuscu.map((exo, i) => (
                       <div key={i}>
                         <p className="font-medium text-sm mb-2" style={{ color: 'var(--text)' }}>
                           {exo.nom}
+                          {exo.poids_max && (
+                            <span className="ml-2 text-xs font-normal" style={{ color: 'var(--orange)' }}>
+                              max {exo.poids_max}kg
+                            </span>
+                          )}
                         </p>
                         <div className="flex flex-col gap-1">
                           {exo.series.map((s, j) => (
@@ -213,6 +294,23 @@ export default function Historique() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Exercices cardio */}
+                    {exosCardio.map((exo, i) => (
+                      <div key={i} className="rounded-xl px-3 py-2.5"
+                        style={{ background: '#111a2e' }}>
+                        <p className="font-medium text-sm mb-1" style={{ color: '#6B9FFF' }}>
+                          🏃 {exo.nom}
+                        </p>
+                        <div className="flex gap-3 flex-wrap text-sm" style={{ color: '#aaaaaa' }}>
+                          {exo.duree_minutes && <span>⏱ {exo.duree_minutes}min</span>}
+                          {exo.distance_m && <span>📍 {exo.distance_m >= 1000 ? `${(exo.distance_m/1000).toFixed(1)}km` : `${exo.distance_m}m`}</span>}
+                          {exo.denivele_m && <span>⛰ +{exo.denivele_m}m</span>}
+                          {exo.nb_sauts && <span>🪢 {exo.nb_sauts} sauts</span>}
+                          {exo.note_cardio && <span>· {exo.note_cardio}</span>}
                         </div>
                       </div>
                     ))}
