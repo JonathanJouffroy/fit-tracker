@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { SkeletonStats, SkeletonGraphique, SkeletonListe } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
+import CoachExercice from '@/app/components/CoachExercice'
 
 // Génère 4 valeurs d'axe Y régulièrement espacées entre min et max
 function ticksY(min, max, nb = 4) {
@@ -100,6 +101,7 @@ export default function ProgressionExercice() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState(null)
+  const [userId, setUserId] = useState(null)
 
   useEffect(() => { charger() }, [exerciceId])
 
@@ -109,6 +111,7 @@ export default function ProgressionExercice() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      setUserId(user.id)
 
       const idsParam = searchParams.get('ids')
       const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
@@ -208,6 +211,14 @@ export default function ProgressionExercice() {
         </div>
       ) : (
         <>
+          {/* Coach */}
+          <CoachExercice
+            sessions={sessions}
+            nomExercice={nomExercice}
+            userId={userId}
+            supabase={supabase}
+          />
+
           {/* Stats */}
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="card text-center py-3">
