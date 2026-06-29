@@ -244,14 +244,6 @@ export default function Historique() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {/* Bouton partage */}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setSeanceAPartager(seance) }}
-                        className="text-xl px-2 py-1 rounded-lg"
-                        style={{ background: 'var(--surface-2)' }}
-                        title="Partager sur Instagram">
-                        📤
-                      </button>
                       <span style={{ color: 'var(--text-faint)' }}>{estOuverte ? '▲' : '▼'}</span>
                     </div>
                   </div>
@@ -314,6 +306,23 @@ export default function Historique() {
                         </div>
                       </div>
                     ))}
+
+                    {/* Bouton partage — en bas du détail */}
+                    <button
+                      onClick={() => setSeanceAPartager(seance)}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold mt-1"
+                      style={{
+                        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+                        color: '#a0b4d0',
+                        border: '1px solid #2a3f5f',
+                      }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                        <polyline points="16 6 12 2 8 6"/>
+                        <line x1="12" y1="2" x2="12" y2="15"/>
+                      </svg>
+                      Partager la séance
+                    </button>
                   </div>
                 )}
               </div>
