@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
+import { SkeletonStats, SkeletonGraphique, SkeletonListe } from '@/app/components/Skeleton'
 
 // Génère 4 valeurs d'axe Y régulièrement espacées entre min et max
 function ticksY(min, max, nb = 4) {
@@ -148,7 +149,16 @@ export default function ProgressionExercice() {
     setLoading(false)
   }
 
-  if (loading) return <p className="pt-6" style={{ color: 'var(--text-muted)' }}>Chargement...</p>
+  if (loading) return (
+    <div className="pt-6">
+      <div className="h-5 w-20 rounded-lg mb-3 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <div className="h-8 w-48 rounded-lg mb-6 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <SkeletonStats nb={4} />
+      <SkeletonGraphique />
+      <SkeletonGraphique />
+      <SkeletonListe nb={5} lignes={2} />
+    </div>
+  )
 
   const sessionsAvecPoids = sessions.filter((s) => s.poids_max !== null)
   const pr = sessionsAvecPoids.length > 0 ? Math.max(...sessionsAvecPoids.map((s) => s.poids_max)) : null
