@@ -467,10 +467,9 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
   glucidesLibre, setGlucidesLibre, lipidesLibre, setLipidesLibre, quantiteG, setQuantiteG,
   onSubmit, onScanner, onAnnuler }) {
 
-  // Recalcul des macros quand la quantité change
-  const kcalAffiche = quantiteG && kcalLibre
-    ? Math.round(Number(kcalLibre) * Number(quantiteG) / 100)
-    : kcalLibre ? Number(kcalLibre) : null
+  const ratio = quantiteG && kcalLibre ? Number(quantiteG) / 100 : 1
+  const kcalCalcule = kcalLibre && quantiteG ? Math.round(Number(kcalLibre) * ratio) : null
+  const macrosPour100g = kcalLibre || proteinesLibre || glucidesLibre || lipidesLibre
 
   return (
     <form onSubmit={onSubmit} className="card flex flex-col gap-3 mb-6">
@@ -486,49 +485,59 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
         <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
       </div>
 
+      {/* 1. Nom */}
       <input value={nom} onChange={(e) => setNom(e.target.value)}
         placeholder="Ex: Poulet riz brocolis" className="input" required />
 
-      {/* Quantité — avec recalcul auto si macros pour 100g */}
-      {kcalLibre && (
-        <div>
-          <label className="label">Quantité consommée (g)</label>
-          <div className="flex items-center gap-2">
-            <input type="number" min="0" step="1" value={quantiteG}
-              onChange={(e) => setQuantiteG(e.target.value)}
-              placeholder="Ex: 150" className="input flex-1" />
-            {kcalAffiche && quantiteG && Number(quantiteG) !== 100 && (
-              <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--orange)' }}>
-                → {kcalAffiche} kcal
-              </span>
+      {/* 2. Macros pour 100g */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="label">{macrosPour100g ? 'Calories/100g' : 'Calories'}</label>
+          <input type="number" min="0" value={kcalLibre}
+            onChange={(e) => setKcalLibre(e.target.value)} placeholder="kcal" className="input" />
+        </div>
+        <div className="flex-1">
+          <label className="label">Protéines (g)</label>
+          <input type="number" min="0" step="0.1" value={proteinesLibre}
+            onChange={(e) => setProteinesLibre(e.target.value)} placeholder="g" className="input" />
+        </div>
+        <div className="flex-1">
+          <label className="label">Glucides (g)</label>
+          <input type="number" min="0" step="0.1" value={glucidesLibre}
+            onChange={(e) => setGlucidesLibre(e.target.value)} placeholder="g" className="input" />
+        </div>
+        <div className="flex-1">
+          <label className="label">Lipides (g)</label>
+          <input type="number" min="0" step="0.1" value={lipidesLibre}
+            onChange={(e) => setLipidesLibre(e.target.value)} placeholder="g" className="input" />
+        </div>
+      </div>
+
+      {/* 3. Quantité consommée (seulement si macros pour 100g renseignées) */}
+      {macrosPour100g && (
+        <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: 'var(--surface-2)' }}>
+          <div className="flex items-center gap-3">
+            <div className="flex-1">
+              <label className="label">Quantité consommée (g)</label>
+              <input type="number" min="0" step="1" value={quantiteG}
+                onChange={(e) => setQuantiteG(e.target.value)}
+                placeholder="Ex: 150" className="input" />
+            </div>
+            {kcalCalcule && quantiteG && (
+              <div className="text-right">
+                <p className="text-xl font-bold" style={{ color: 'var(--orange)' }}>{kcalCalcule}</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>kcal totales</p>
+              </div>
             )}
           </div>
           {quantiteG && Number(quantiteG) !== 100 && (
-            <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
-              Macros recalculées pour {quantiteG}g
+            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+              Toutes les macros recalculées pour {quantiteG}g
             </p>
           )}
         </div>
       )}
 
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="label">Calories{!kcalLibre ? '' : ' (pour 100g)'}</label>
-          <input type="number" min="0" value={kcalLibre} onChange={(e) => setKcalLibre(e.target.value)} placeholder="kcal" className="input" />
-        </div>
-        <div className="flex-1">
-          <label className="label">Protéines (g)</label>
-          <input type="number" min="0" step="0.1" value={proteinesLibre} onChange={(e) => setProteinesLibre(e.target.value)} placeholder="g" className="input" />
-        </div>
-        <div className="flex-1">
-          <label className="label">Glucides (g)</label>
-          <input type="number" min="0" step="0.1" value={glucidesLibre} onChange={(e) => setGlucidesLibre(e.target.value)} placeholder="g" className="input" />
-        </div>
-        <div className="flex-1">
-          <label className="label">Lipides (g)</label>
-          <input type="number" min="0" step="0.1" value={lipidesLibre} onChange={(e) => setLipidesLibre(e.target.value)} placeholder="g" className="input" />
-        </div>
-      </div>
       <button type="submit" className="btn-primary w-full py-2">Ajouter</button>
       {onAnnuler && (
         <button type="button" onClick={onAnnuler}
