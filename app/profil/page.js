@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { calculerCaloriesCible, calculerCaloriesExercice, NIVEAUX_ACTIVITE, OBJECTIFS } from '@/lib/calculs'
 import JaugeCalories from '@/app/components/JaugeCalories'
@@ -27,6 +28,7 @@ function labelJour(dateStr) {
 
 export default function Profil() {
   const supabase = createClient()
+  const router = useRouter()
   const [userId, setUserId] = useState(null)
   const [poids, setPoids] = useState('')
   const [taille, setTaille] = useState('')
@@ -47,6 +49,13 @@ export default function Profil() {
   const [objectifPoidsId, setObjectifPoidsId] = useState(null)
   const [showFormObjectif, setShowFormObjectif] = useState(false)
   const toast = useToast()
+
+  async function seDeconnecter() {
+    if (!confirm('Se déconnecter ?')) return
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
 
   useEffect(() => { chargerTout() }, [])
 
@@ -438,6 +447,13 @@ export default function Profil() {
           </div>
         </>
       )}
+
+      {/* Bouton déconnexion */}
+      <button onClick={seDeconnecter}
+        className="w-full mt-6 py-3 rounded-xl text-sm font-medium"
+        style={{ background: 'var(--surface-2)', color: '#ef4444', border: '1px solid #fee2e2' }}>
+        Déconnexion
+      </button>
     </div>
   )
 }
