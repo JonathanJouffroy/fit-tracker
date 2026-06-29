@@ -99,32 +99,34 @@ export default function ProgressionExercice() {
   const [nomExercice, setNomExercice] = useState('')
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
 
   useEffect(() => { charger() }, [exerciceId])
 
   async function charger() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    const idsParam = searchParams.get('ids')
-    const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
+      const idsParam = searchParams.get('ids')
+      const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
 
-    // Nom : depuis le paramètre URL (snapshot) ou depuis la DB
-    const nomParam = searchParams.get('nom')
-    if (nomParam) {
-      setNomExercice(decodeURIComponent(nomParam))
-    } else {
-      const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
-      setNomExercice(exo?.nom || '')
-    }
+      const nomParam = searchParams.get('nom')
+      if (nomParam) {
+        setNomExercice(decodeURIComponent(nomParam))
+      } else {
+        const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
+        setNomExercice(exo?.nom || '')
+      }
 
-    const { data: logs } = await supabase
-      .from('seances_log')
-      .select('date_seance, exercice_id, exercice_nom, poids_kg, repetitions_faites, serie_numero')
-      .eq('user_id', user.id)
-      .in('exercice_id', ids)
-      .order('date_seance', { ascending: true })
+      const { data: logs } = await supabase
+        .from('seances_log')
+        .select('date_seance, exercice_id, exercice_nom, poids_kg, repetitions_faites, serie_numero')
+        .eq('user_id', user.id)
+        .in('exercice_id', ids)
+        .order('date_seance', { ascending: true })
 
     const parSession = {}
     logs?.forEach((log) => {
@@ -147,7 +149,11 @@ export default function ProgressionExercice() {
       })
 
     setSessions(sessionsCalc)
-    setLoading(false)
+    } catch (e) {
+      setErreur('Impossible de charger la progression. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (loading) return (
