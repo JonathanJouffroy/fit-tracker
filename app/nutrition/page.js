@@ -17,20 +17,13 @@ function formatDate(dateStr) {
 }
 
 function getMacros(r) {
-  const kcal = r.options_repas?.kcal || r.kcal_libre || 0
-  const p = r.options_repas?.proteines_g || r.proteines_libre || 0
-  const g = r.options_repas?.glucides_g || r.glucides_libre || 0
-  const l = r.options_repas?.lipides_g || r.lipides_libre || 0
-  if (r.quantite_g && (r.kcal_libre || r.proteines_libre)) {
-    const ratio = r.quantite_g / 100
-    return {
-      kcal: Math.round(kcal * ratio),
-      p: Math.round(p * ratio * 10) / 10,
-      g: Math.round(g * ratio * 10) / 10,
-      l: Math.round(l * ratio * 10) / 10,
-    }
+  // Les valeurs _libre sont déjà recalculées selon la quantité au moment de l'insert
+  return {
+    kcal: Math.round(r.options_repas?.kcal || r.kcal_libre || 0),
+    p: r.options_repas?.proteines_g || r.proteines_libre || 0,
+    g: r.options_repas?.glucides_g || r.glucides_libre || 0,
+    l: r.options_repas?.lipides_g || r.lipides_libre || 0,
   }
-  return { kcal: Math.round(kcal), p, g, l }
 }
 
 const TYPES = {
