@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Header from './components/Header'
+import { SkeletonListe } from './components/Skeleton'
 
 export default function Home() {
   const router = useRouter()
@@ -54,7 +55,7 @@ export default function Home() {
       </Link>
 
       {loading ? (
-        <p className="text-gray-400">Chargement...</p>
+        <SkeletonListe nb={7} lignes={2} />
       ) : (
         <div className="flex flex-col gap-3">
           {jours.map((jour) => {
