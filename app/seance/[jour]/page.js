@@ -23,6 +23,7 @@ export default function SeanceJour() {
   const [userId, setUserId] = useState(null)
   const [seriesFaites, setSeriesFaites] = useState({})
   const [poidsSerieEnCours, setPoidsSerieEnCours] = useState({})
+  const [repsReelles, setRepsReelles] = useState({}) // {exoId: repsEnCours}
   const [seanceCommencee, setSeanceCommencee] = useState(false)
   const [nomsExistants, setNomsExistants] = useState([])
 
@@ -94,6 +95,11 @@ export default function SeanceJour() {
     setPoidsSerieEnCours((prev) => {
       const next = { ...prev }
       exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
+      return next
+    })
+    setRepsReelles((prev) => {
+      const next = { ...prev }
+      exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.repetitions })
       return next
     })
     setLoading(false)
@@ -168,9 +174,11 @@ export default function SeanceJour() {
   }
 
   async function supprimerExercice(id, nomExo) {
+    if (!confirm(`Supprimer "${nomExo}" ? Cette action est irréversible.`)) return
     await supabase.from('exercices').delete().eq('id', id)
     setSeriesFaites((s) => { const n = { ...s }; delete n[id]; return n })
     setPoidsSerieEnCours((s) => { const n = { ...s }; delete n[id]; return n })
+    setRepsReelles((s) => { const n = { ...s }; delete n[id]; return n })
     toast(`${nomExo} supprimé`)
     rechargerExercices(userId)
   }
@@ -178,14 +186,15 @@ export default function SeanceJour() {
   async function terminerSerie(exercice) {
     const fait = (seriesFaites[exercice.id] || 0) + 1
     setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
-    if (!seanceCommencee) setSeanceCommencee(true) // démarre le timer au premier clic
+    if (!seanceCommencee) setSeanceCommencee(true)
     const poidsSerie = parseFloat(poidsSerieEnCours[exercice.id]) || null
+    const repsEffectives = Number(repsReelles[exercice.id]) || exercice.repetitions
     await supabase.from('seances_log').insert([{
       user_id: userId,
       exercice_id: exercice.id,
-      exercice_nom: exercice.nom, // snapshot du nom au moment du log
+      exercice_nom: exercice.nom,
       serie_numero: fait,
-      repetitions_faites: exercice.repetitions,
+      repetitions_faites: repsEffectives,
       poids_kg: poidsSerie,
     }])
     if (fait < exercice.series) {
@@ -308,11 +317,18 @@ export default function SeanceJour() {
                     {!termine ? (
                       <div className="mt-3 flex items-end gap-2">
                         <div className="flex-1">
-                          <label className="label">Poids série {fait + 1} (kg)</label>
+                          <label className="label">Reps série {fait + 1}</label>
+                          <input type="number" min="1"
+                            value={repsReelles[exo.id] ?? exo.repetitions}
+                            onChange={(e) => setRepsReelles((r) => ({ ...r, [exo.id]: e.target.value }))}
+                            className="input text-sm" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="label">Poids (kg)</label>
                           <input type="number" step="0.5" min="0"
                             value={poidsSerieEnCours[exo.id] || ''}
                             onChange={(e) => setPoidsSerieEnCours((p) => ({ ...p, [exo.id]: e.target.value }))}
-                            className="input text-sm" placeholder="Ex: 20" />
+                            className="input text-sm" placeholder="0" />
                         </div>
                         <button onClick={() => terminerSerie(exo)}
                           className="btn-primary text-sm py-2 px-4 whitespace-nowrap">
@@ -333,7 +349,13 @@ export default function SeanceJour() {
                 )}
               </div>
 
-              {timerActif && <RestTimer dureeSecondes={exoActifTimer.duree} onTermine={() => {}} />}
+              {timerActif && (
+                <RestTimer
+                  key={`${exo.id}-${fait}`}
+                  dureeSecondes={exoActifTimer.duree}
+                  onTermine={() => {}}
+                />
+              )}
             </div>
           )
         })}
