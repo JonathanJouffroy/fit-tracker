@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
+import { SkeletonListe } from '@/app/components/Skeleton'
 
 function formatDuree(secondes) {
   if (!secondes) return null
@@ -125,7 +126,7 @@ export default function Historique() {
       )}
 
       {loading ? (
-        <p style={{ color: 'var(--text-muted)' }}>Chargement...</p>
+        <SkeletonListe nb={5} lignes={2} />
       ) : seancesFiltrees.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-3xl mb-3">📋</p>
