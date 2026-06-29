@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
+import { ErreurChargement } from '@/app/components/Erreur'
 
 function formatDuree(secondes) {
   if (!secondes) return null
@@ -24,6 +25,7 @@ export default function Historique() {
   const supabase = createClient()
   const [seances, setSeances] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
   const [seanceOuverte, setSeanceOuverte] = useState(null)
   const [mois, setMois] = useState(null)
 
@@ -31,8 +33,10 @@ export default function Historique() {
 
   async function charger() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
     // Exercices pour fallback nom
     const { data: tousExos } = await supabase
@@ -85,7 +89,13 @@ export default function Historique() {
     }))
 
     setSeances(result)
-    setLoading(false)
+    } catch (e) {
+      setErreur(e.message === 'timeout'
+        ? 'Connexion trop lente. Supabase est peut-être indisponible.'
+        : 'Impossible de charger l\'historique. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const moisDisponibles = [...new Set(seances.map((s) => s.date.slice(0, 7)))].sort().reverse()
@@ -127,6 +137,8 @@ export default function Historique() {
 
       {loading ? (
         <SkeletonListe nb={5} lignes={2} />
+      ) : erreur ? (
+        <ErreurChargement message={erreur} onReessayer={charger} />
       ) : seancesFiltrees.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-3xl mb-3">📋</p>
