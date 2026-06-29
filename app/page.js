@@ -58,7 +58,14 @@ export default function Home() {
 
   return (
     <div>
-      <Header title="Ma semaine" subtitle="Planning d'entraînement" />
+      <div className="flex items-start justify-between mb-0">
+        <Header title="Séances" subtitle="Planning d'entraînement" />
+        <Link href="/historique"
+          className="text-xs px-3 py-1.5 rounded-full mt-1 font-medium"
+          style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+          📋 Historique
+        </Link>
+      </div>
 
       <Link href="/programmes" className="flex items-center justify-between card mb-4 py-3">
         <div className="flex items-center gap-2">
