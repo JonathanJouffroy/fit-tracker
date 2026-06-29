@@ -7,6 +7,7 @@ import RestTimer from '@/app/components/RestTimer'
 import TimerSeance from '@/app/components/TimerSeance'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import { useToast } from '@/app/components/Toast'
+import { SkeletonExercice } from '@/app/components/Skeleton'
 import { calculerCaloriesExercice } from '@/lib/calculs'
 
 export default function SeanceJour() {
@@ -205,7 +206,15 @@ export default function SeanceJour() {
     }
   }
 
-  if (loading) return <p className="pt-6" style={{ color: 'var(--text-muted)' }}>Chargement...</p>
+  if (loading) return (
+    <div className="pt-6">
+      <div className="h-6 w-24 rounded-lg mb-3 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <div className="h-8 w-40 rounded-lg mb-6 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <div className="flex flex-col gap-4">
+        {Array.from({ length: 4 }).map((_, i) => <SkeletonExercice key={i} />)}
+      </div>
+    </div>
+  )
 
   function kcalExo(exo, nbSeries) {
     return calculerCaloriesExercice({ series: nbSeries, repetitions: exo.repetitions, poidsCharge: exo.poids_charge_kg, poidsCorps })
