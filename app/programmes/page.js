@@ -6,14 +6,16 @@ import { useToast } from '@/app/components/Toast'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
+import { ACTIVITES_CARDIO } from '@/lib/calculs'
 
 const JOURS = [
   { id: 1, nom: 'Lundi' }, { id: 2, nom: 'Mardi' }, { id: 3, nom: 'Mercredi' },
   { id: 4, nom: 'Jeudi' }, { id: 5, nom: 'Vendredi' }, { id: 6, nom: 'Samedi' }, { id: 7, nom: 'Dimanche' },
 ]
 
-function newExo() {
-  return { nom: '', series: 3, repetitions: 10, repos_secondes: 60, poids_charge_kg: 0 }
+function newExo(type = 'muscu') {
+  if (type === 'cardio') return { nom: '', type_exercice: 'cardio', activite_cardio: 'natation' }
+  return { nom: '', type_exercice: 'muscu', series: 3, repetitions: 10, repos_secondes: 60, poids_charge_kg: 0 }
 }
 
 // ======== Formulaire création / édition (partagé) ========
@@ -24,19 +26,19 @@ function FormulaireProgamme({ userId, supabase, toast, onSave, onAnnuler, nomsEx
   const [descProg, setDescProg] = useState(progAEditer?.description || '')
   const [exoParJour, setExoParJour] = useState(() => {
     if (!progAEditer) return {}
-    // Pré-remplir avec les exercices existants
     const map = {}
     progAEditer.programme_exercices?.forEach((pe) => {
       if (!map[pe.jour_id]) map[pe.jour_id] = []
       map[pe.jour_id].push({
         nom: pe.nom,
+        type_exercice: pe.type_exercice || 'muscu',
+        activite_cardio: pe.activite_cardio || null,
         series: pe.series,
         repetitions: pe.repetitions,
         repos_secondes: pe.repos_secondes,
         poids_charge_kg: pe.poids_charge_kg || 0,
       })
     })
-    // Trier chaque jour par ordre
     Object.keys(map).forEach((k) => {
       map[k].sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
     })
@@ -45,8 +47,8 @@ function FormulaireProgamme({ userId, supabase, toast, onSave, onAnnuler, nomsEx
   const [jourActif, setJourActif] = useState(1)
   const [enCours, setEnCours] = useState(false)
 
-  function ajouterExo(jourId) {
-    setExoParJour((prev) => ({ ...prev, [jourId]: [...(prev[jourId] || []), newExo()] }))
+  function ajouterExo(jourId, type = 'muscu') {
+    setExoParJour((prev) => ({ ...prev, [jourId]: [...(prev[jourId] || []), newExo(type)] }))
   }
 
   function supprimerExo(jourId, i) {
@@ -92,19 +94,21 @@ function FormulaireProgamme({ userId, supabase, toast, onSave, onAnnuler, nomsEx
       progId = data.id
     }
 
-    // Insérer tous les exercices
     const lignes = []
     Object.entries(exoParJour).forEach(([jourId, exos]) => {
       exos.forEach((exo, i) => {
         if (!exo.nom.trim()) return
+        const isCardio = exo.type_exercice === 'cardio'
         lignes.push({
           programme_id: progId,
           jour_id: Number(jourId),
           nom: exo.nom.trim(),
-          series: Number(exo.series),
-          repetitions: Number(exo.repetitions),
-          repos_secondes: Number(exo.repos_secondes),
-          poids_charge_kg: Number(exo.poids_charge_kg) || 0,
+          type_exercice: exo.type_exercice || 'muscu',
+          activite_cardio: isCardio ? exo.activite_cardio : null,
+          series: isCardio ? 1 : Number(exo.series),
+          repetitions: isCardio ? 0 : Number(exo.repetitions),
+          repos_secondes: isCardio ? 0 : Number(exo.repos_secondes),
+          poids_charge_kg: isCardio ? 0 : Number(exo.poids_charge_kg) || 0,
           ordre: i,
         })
       })
@@ -171,53 +175,99 @@ function FormulaireProgamme({ userId, supabase, toast, onSave, onAnnuler, nomsEx
           )}
         </div>
 
-        {(exoParJour[jourActif] || []).map((exo, i) => (
-          <div key={i} className="flex flex-col gap-2 pb-3 border-b last:border-0 last:pb-0"
-            style={{ borderColor: 'var(--border)' }}>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="label">Exercice {i + 1}</label>
-                <AutocompleteInput
-                  value={exo.nom}
-                  onChange={(v) => modifierExo(jourActif, i, 'nom', v)}
-                  suggestions={nomsExistants}
-                  placeholder="Ex: Squat, Développé couché..."
-                />
-              </div>
-              <button onClick={() => supprimerExo(jourActif, i)}
-                className="mt-4 text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="label">Séries</label>
-                <input type="number" min="1" value={exo.series}
-                  onChange={(e) => modifierExo(jourActif, i, 'series', e.target.value)} className="input" />
-              </div>
-              <div className="flex-1">
-                <label className="label">Reps</label>
-                <input type="number" min="1" value={exo.repetitions}
-                  onChange={(e) => modifierExo(jourActif, i, 'repetitions', e.target.value)} className="input" />
-              </div>
-              <div className="flex-1">
-                <label className="label">Repos (s)</label>
-                <input type="number" min="0" step="15" value={exo.repos_secondes}
-                  onChange={(e) => modifierExo(jourActif, i, 'repos_secondes', e.target.value)} className="input" />
-              </div>
-              <div className="flex-1">
-                <label className="label">Poids (kg)</label>
-                <input type="number" min="0" step="0.5" value={exo.poids_charge_kg || ''}
-                  onChange={(e) => modifierExo(jourActif, i, 'poids_charge_kg', e.target.value)}
-                  placeholder="0" className="input" />
-              </div>
-            </div>
-          </div>
-        ))}
+        {(exoParJour[jourActif] || []).map((exo, i) => {
+          const isCardio = exo.type_exercice === 'cardio'
+          return (
+            <div key={i} className="flex flex-col gap-2 pb-3 border-b last:border-0 last:pb-0"
+              style={{ borderColor: 'var(--border)' }}>
 
-        <button onClick={() => ajouterExo(jourActif)}
-          className="w-full py-2 rounded-xl text-sm font-medium border-2 border-dashed"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-          + Ajouter un exercice
-        </button>
+              {/* Toggle muscu/cardio par exercice */}
+              <div className="flex gap-1">
+                {[['muscu', '🏋️'], ['cardio', '🏃']].map(([t, icon]) => (
+                  <button key={t} type="button"
+                    onClick={() => modifierExo(jourActif, i, 'type_exercice', t)}
+                    className="px-2 py-1 rounded-lg text-xs font-medium"
+                    style={{
+                      background: exo.type_exercice === t ? 'var(--orange)' : 'var(--surface-2)',
+                      color: exo.type_exercice === t ? 'white' : 'var(--text-muted)',
+                    }}>
+                    {icon} {t === 'muscu' ? 'Muscu' : 'Cardio'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <label className="label">{isCardio ? 'Nom de la séance' : `Exercice ${i + 1}`}</label>
+                  <AutocompleteInput
+                    value={exo.nom}
+                    onChange={(v) => modifierExo(jourActif, i, 'nom', v)}
+                    suggestions={nomsExistants}
+                    placeholder={isCardio ? 'Ex: Sortie natation' : 'Ex: Squat, Développé couché...'}
+                  />
+                </div>
+                <button onClick={() => supprimerExo(jourActif, i)}
+                  className="mt-4 text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
+              </div>
+
+              {isCardio ? (
+                <div>
+                  <label className="label">Activité</label>
+                  <div className="grid grid-cols-2 gap-1">
+                    {ACTIVITES_CARDIO.map((a) => (
+                      <button key={a.id} type="button"
+                        onClick={() => modifierExo(jourActif, i, 'activite_cardio', a.id)}
+                        className="text-left px-2 py-1.5 rounded-lg text-xs"
+                        style={{
+                          background: exo.activite_cardio === a.id ? 'var(--orange)' : 'var(--surface-2)',
+                          color: exo.activite_cardio === a.id ? 'white' : 'var(--text)',
+                        }}>
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="label">Séries</label>
+                    <input type="number" min="1" value={exo.series}
+                      onChange={(e) => modifierExo(jourActif, i, 'series', e.target.value)} className="input" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="label">Reps</label>
+                    <input type="number" min="1" value={exo.repetitions}
+                      onChange={(e) => modifierExo(jourActif, i, 'repetitions', e.target.value)} className="input" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="label">Repos (s)</label>
+                    <input type="number" min="0" step="15" value={exo.repos_secondes}
+                      onChange={(e) => modifierExo(jourActif, i, 'repos_secondes', e.target.value)} className="input" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="label">Poids (kg)</label>
+                    <input type="number" min="0" step="0.5" value={exo.poids_charge_kg || ''}
+                      onChange={(e) => modifierExo(jourActif, i, 'poids_charge_kg', e.target.value)}
+                      placeholder="0" className="input" />
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        <div className="flex gap-2">
+          <button onClick={() => ajouterExo(jourActif, 'muscu')}
+            className="flex-1 py-2 rounded-xl text-sm font-medium border-2 border-dashed"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
+            + Muscu
+          </button>
+          <button onClick={() => ajouterExo(jourActif, 'cardio')}
+            className="flex-1 py-2 rounded-xl text-sm font-medium border-2 border-dashed"
+            style={{ borderColor: '#3B82F6', color: '#3B82F6' }}>
+            + Cardio
+          </button>
+        </div>
       </div>
 
       {/* Résumé */}
@@ -301,6 +351,8 @@ export default function Programmes() {
     await supabase.from('exercices').delete().eq('user_id', userId)
     const nouveaux = (prog.programme_exercices || []).map((pe) => ({
       user_id: userId, jour_id: pe.jour_id, nom: pe.nom,
+      type_exercice: pe.type_exercice || 'muscu',
+      activite_cardio: pe.activite_cardio || null,
       series: pe.series, repetitions: pe.repetitions,
       repos_secondes: pe.repos_secondes, poids_charge_kg: pe.poids_charge_kg || 0, ordre: pe.ordre,
     }))
@@ -417,6 +469,8 @@ function SauvegarderSemaine({ userId, supabase, toast, onSave }) {
       await supabase.from('programme_exercices').insert(
         exos.map(e => ({
           programme_id: data.id, jour_id: e.jour_id, nom: e.nom,
+          type_exercice: e.type_exercice || 'muscu',
+          activite_cardio: e.activite_cardio || null,
           series: e.series, repetitions: e.repetitions,
           repos_secondes: e.repos_secondes, poids_charge_kg: e.poids_charge_kg || 0, ordre: e.ordre,
         }))
@@ -490,8 +544,10 @@ function ProgrammeCard({ prog, exercicesParJour, ouvert, onToggle, onAppliquer, 
                   <div key={exo.id} className="flex justify-between text-sm">
                     <span style={{ color: 'var(--text)' }}>{exo.nom}</span>
                     <span style={{ color: 'var(--text-faint)' }}>
-                      {exo.series}×{exo.repetitions}
-                      {exo.poids_charge_kg > 0 && ` · ${exo.poids_charge_kg}kg`}
+                      {exo.type_exercice === 'cardio'
+                        ? `🏃 ${exo.activite_cardio || 'Cardio'}`
+                        : `${exo.series}×${exo.repetitions}${exo.poids_charge_kg > 0 ? ` · ${exo.poids_charge_kg}kg` : ''}`
+                      }
                     </span>
                   </div>
                 ))}
