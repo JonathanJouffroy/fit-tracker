@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
@@ -25,6 +26,7 @@ function formatDate(dateStr) {
 
 export default function Historique() {
   const supabase = createClient()
+  const router = useRouter()
   const [seances, setSeances] = useState([])
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState(null)
@@ -168,6 +170,7 @@ export default function Historique() {
         />
       )}
 
+      <button onClick={() => router.back()} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
       <Header title="Historique" subtitle="Toutes tes séances passées" />
 
       {moisDisponibles.length > 1 && (
