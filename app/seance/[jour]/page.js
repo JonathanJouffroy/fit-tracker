@@ -28,7 +28,6 @@ export default function SeanceJour() {
   const [seriesFaites, setSeriesFaites] = useState({})
   const [poidsSerieEnCours, setPoidsSerieEnCours] = useState({})
   const [repsReelles, setRepsReelles] = useState({})
-  const [seanceCommencee, setSeanceCommencee] = useState(false)
   const [nomsExistants, setNomsExistants] = useState([])
   const [idsByNom, setIdsByNom] = useState({})
   const [cardioEnCours, setCardioEnCours] = useState(null)
@@ -196,7 +195,6 @@ export default function SeanceJour() {
   async function terminerSerie(exercice) {
     const fait = (seriesFaites[exercice.id] || 0) + 1
     setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
-    if (!seanceCommencee) setSeanceCommencee(true)
     const poidsSerie = parseFloat(poidsSerieEnCours[exercice.id]) || null
     const repsEffectives = Number(repsReelles[exercice.id]) || exercice.repetitions
     await supabase.from('seances_log').insert([{
@@ -212,7 +210,6 @@ export default function SeanceJour() {
   }
 
   async function terminerCardio(exo, metriques) {
-    if (!seanceCommencee) setSeanceCommencee(true)
     await supabase.from('seances_log').insert([{
       user_id: userId, exercice_id: exo.id, exercice_nom: exo.nom,
       serie_numero: 1, repetitions_faites: 0, poids_kg: null,
@@ -258,7 +255,7 @@ export default function SeanceJour() {
       <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
       <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
 
-      <TimerSeance actif={seanceCommencee} jourId={jourId} />
+      <TimerSeance jourId={jourId} />
 
       {!poidsCorps && (
         <p className="text-xs mb-3" style={{ color: 'var(--orange)' }}>
@@ -364,7 +361,7 @@ export default function SeanceJour() {
                     )}
                     {isCardio && termine && <p className="text-sm font-semibold mt-3 text-green-500">✓ Séance enregistrée</p>}
 
-                    {!isCardio && !termine && (
+                    {!isCardio && (
                       <div className="mt-3 flex items-end gap-2">
                         <div className="flex-1">
                           <label className="label">Reps série {fait + 1}</label>
@@ -381,15 +378,23 @@ export default function SeanceJour() {
                             className="input text-sm" placeholder="0" />
                         </div>
                         <button onClick={() => terminerSerie(exo)}
-                          className="btn-primary text-sm py-2 px-4 whitespace-nowrap">
-                          Série {fait + 1} ✓
+                          className="text-sm py-2 px-4 whitespace-nowrap rounded-xl font-semibold"
+                          style={{
+                            background: termine ? 'var(--surface-2)' : 'var(--orange)',
+                            color: termine ? 'var(--text-muted)' : 'white',
+                          }}>
+                          {termine ? `+ Série ${fait + 1}` : `Série ${fait + 1} ✓`}
                         </button>
                       </div>
                     )}
-                    {!isCardio && termine && <p className="text-sm font-semibold mt-3 text-green-500">✓ {exo.series} séries terminées</p>}
+                    {!isCardio && termine && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
+                        ✓ {exo.series} séries prévues — tu peux en ajouter d'autres
+                      </p>
+                    )}
                     {!isCardio && (
                       <div className="flex gap-1 mt-3">
-                        {Array.from({ length: exo.series }).map((_, i) => (
+                        {Array.from({ length: Math.max(exo.series, fait) }).map((_, i) => (
                           <div key={i} className="flex-1 h-1.5 rounded-full"
                             style={{ background: i < fait ? '#22c55e' : 'var(--surface-2)' }} />
                         ))}
