@@ -8,6 +8,7 @@ import TimerSeance from '@/app/components/TimerSeance'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonExercice } from '@/app/components/Skeleton'
+import { ErreurChargement } from '@/app/components/Erreur'
 import { calculerCaloriesExercice } from '@/lib/calculs'
 
 export default function SeanceJour() {
@@ -19,6 +20,7 @@ export default function SeanceJour() {
   const [jour, setJour] = useState(null)
   const [exercices, setExercices] = useState([])
   const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
   const [exoActifTimer, setExoActifTimer] = useState(null)
   const [poidsCorps, setPoidsCorps] = useState(null)
   const [userId, setUserId] = useState(null)
@@ -68,42 +70,51 @@ export default function SeanceJour() {
 
   async function chargerTout() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setUserId(user.id)
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUserId(user.id)
 
-    const [{ data: jourData }, { data: exosData }, { data: mesures }, { data: tousExos }] = await Promise.all([
-      supabase.from('jours').select('*').eq('id', jourId).single(),
-      supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
-      supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('date_mesure', { ascending: false }).limit(1),
-      // Tous les exercices de l'utilisateur pour construire la map nom→IDs
-      supabase.from('exercices').select('id, nom').eq('user_id', user.id),
-    ])
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+      const [[{ data: jourData }, { data: exosData }, { data: mesures }, { data: tousExos }]] = await Promise.all([
+        Promise.race([
+          Promise.all([
+            supabase.from('jours').select('*').eq('id', jourId).single(),
+            supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
+            supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
+            supabase.from('exercices').select('id, nom').eq('user_id', user.id),
+          ]),
+          timeout,
+        ]),
+      ])
 
-    setJour(jourData)
-    setExercices(exosData || [])
-    setPoidsCorps(mesures?.[0]?.poids_kg || null)
+      setJour(jourData)
+      setExercices(exosData || [])
+      setPoidsCorps(mesures?.[0]?.poids_kg || null)
 
-    // Construire nom → [id1, id2, ...] pour le lien progression
-    const map = {}
-    tousExos?.forEach((e) => {
-      if (!map[e.nom]) map[e.nom] = []
-      map[e.nom].push(e.id)
-    })
-    setIdsByNom(map)
-    setNomsExistants([...new Set((tousExos || []).map((e) => e.nom))].sort())
+      const map = {}
+      tousExos?.forEach((e) => { if (!map[e.nom]) map[e.nom] = []; map[e.nom].push(e.id) })
+      setIdsByNom(map)
+      setNomsExistants([...new Set((tousExos || []).map((e) => e.nom))].sort())
 
-    setPoidsSerieEnCours((prev) => {
-      const next = { ...prev }
-      exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
-      return next
-    })
-    setRepsReelles((prev) => {
-      const next = { ...prev }
-      exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.repetitions })
-      return next
-    })
-    setLoading(false)
+      setPoidsSerieEnCours((prev) => {
+        const next = { ...prev }
+        exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
+        return next
+      })
+      setRepsReelles((prev) => {
+        const next = { ...prev }
+        exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.repetitions })
+        return next
+      })
+    } catch (e) {
+      setErreur(e.message === 'timeout'
+        ? 'Connexion trop lente. Supabase est peut-être indisponible.'
+        : 'Impossible de charger la séance. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function rechargerExercices(uid) {
@@ -208,11 +219,18 @@ export default function SeanceJour() {
 
   if (loading) return (
     <div className="pt-6">
-      <div className="h-6 w-24 rounded-lg mb-3 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <div className="h-5 w-20 rounded-lg mb-3 animate-pulse" style={{ background: 'var(--surface-2)' }} />
       <div className="h-8 w-40 rounded-lg mb-6 animate-pulse" style={{ background: 'var(--surface-2)' }} />
       <div className="flex flex-col gap-4">
         {Array.from({ length: 4 }).map((_, i) => <SkeletonExercice key={i} />)}
       </div>
+    </div>
+  )
+
+  if (erreur) return (
+    <div className="pt-6">
+      <button onClick={() => router.push('/')} className="text-sm mb-4" style={{ color: 'var(--orange)' }}>← Retour</button>
+      <ErreurChargement message={erreur} onReessayer={chargerTout} />
     </div>
   )
 
