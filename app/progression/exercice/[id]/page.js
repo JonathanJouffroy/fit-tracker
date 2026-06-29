@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { SkeletonStats, SkeletonGraphique, SkeletonListe } from '@/app/components/Skeleton'
+import { ErreurChargement } from '@/app/components/Erreur'
 
 // Génère 4 valeurs d'axe Y régulièrement espacées entre min et max
 function ticksY(min, max, nb = 4) {
@@ -157,6 +158,13 @@ export default function ProgressionExercice() {
       <SkeletonGraphique />
       <SkeletonGraphique />
       <SkeletonListe nb={5} lignes={2} />
+    </div>
+  )
+
+  if (erreur) return (
+    <div className="pt-6">
+      <button onClick={() => router.back()} className="text-sm mb-4" style={{ color: 'var(--orange)' }}>← Retour</button>
+      <ErreurChargement message={erreur} onReessayer={charger} />
     </div>
   )
 
