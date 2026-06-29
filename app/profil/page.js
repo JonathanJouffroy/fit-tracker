@@ -6,6 +6,7 @@ import JaugeCalories from '@/app/components/JaugeCalories'
 import CourbeObjectifPoids from '@/app/components/CourbeObjectifPoids'
 import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
+import { SkeletonJauge, SkeletonGraphique, SkeletonListe } from '@/app/components/Skeleton'
 
 function calculerIMC(poids, taille) {
   const tailleM = taille / 100
@@ -213,7 +214,13 @@ export default function Profil() {
     <div>
       <Header title="Mon profil" subtitle="IMC, métabolisme & calories" />
 
-      {loading ? <p className="text-gray-400">Chargement...</p> : (
+      {loading ? (
+        <>
+          <SkeletonJauge />
+          <SkeletonGraphique />
+          <SkeletonListe nb={3} lignes={2} />
+        </>
+      ) : (
         <>
           {/* Jauge calories du jour */}
           {resultatCalories && !editionProfil && (
