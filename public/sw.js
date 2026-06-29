@@ -1,4 +1,3 @@
-// ⚠️ Change ce numéro à chaque déploiement important pour forcer la mise à jour
 const CACHE_VERSION = self.__SW_VERSION__ || 'dev'
 const CACHE_NAME = `fit-tracker-${CACHE_VERSION}`
 
@@ -14,7 +13,6 @@ const STATIC_ASSETS = [
   '/icon-512.png',
 ]
 
-// Installation
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -22,7 +20,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting()
 })
 
-// Activation : nettoie les anciens caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -36,44 +33,52 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
-// Fetch
 self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Ne jamais intercepter Supabase (toujours réseau direct)
+  // Ne jamais intercepter les requêtes Supabase ou non-GET
   if (url.hostname.includes('supabase.co')) return
-
-  // Ne pas intercepter les requêtes POST/PUT/DELETE (mutations)
+  if (url.hostname.includes('openfoodfacts.org')) return
   if (request.method !== 'GET') return
 
-  // Assets Next.js : Cache First
+  // Assets statiques Next.js — cache first
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.match(request).then(
-        (cached) => cached || fetch(request).then((response) => {
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()))
+      caches.match(request).then((cached) => {
+        if (cached) return cached
+        return fetch(request).then((response) => {
+          if (!response || !response.ok) return response
+          // Cloner AVANT de retourner
+          const clone = response.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
           return response
         })
-      )
+      })
     )
     return
   }
 
-  // Pages et autres assets : Network First, fallback cache
+  // Pages et autres ressources — network first avec fallback cache
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok) {
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()))
-        }
+        if (!response || !response.ok || response.type === 'opaque') return response
+        // Cloner AVANT de retourner
+        const clone = response.clone()
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
         return response
       })
-      .catch(() => caches.match(request))
+      .catch(() => {
+        return caches.match(request).then((cached) => {
+          if (cached) return cached
+          // Fallback page offline si rien en cache
+          return caches.match('/')
+        })
+      })
   )
 })
 
-// Message pour forcer la mise à jour depuis l'app
 self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') self.skipWaiting()
 })
