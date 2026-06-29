@@ -4,97 +4,77 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
+import { ErreurChargement } from '@/app/components/Erreur'
 
 export default function Progression() {
   const supabase = createClient()
   const [exercices, setExercices] = useState([])
   const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
 
   useEffect(() => { charger() }, [])
 
   async function charger() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-    // Tous les exercices actuels (pour la liste complète incluant ceux sans logs)
-    const { data: exos } = await supabase
-      .from('exercices')
-      .select('id, nom, jour_id, jours(nom)')
-      .eq('user_id', user.id)
+      const { data: exos } = await supabase
+        .from('exercices').select('id, nom, jour_id, jours(nom)').eq('user_id', user.id)
 
-    // Tous les logs — on utilise exercice_nom (snapshot) en priorité,
-    // fallback sur la map id→nom si l'ancien log n'a pas de snapshot
-    const { data: logs } = await supabase
-      .from('seances_log')
-      .select('exercice_id, exercice_nom, date_seance, poids_kg, repetitions_faites')
-      .eq('user_id', user.id)
-      .not('poids_kg', 'is', null)
-      .gt('poids_kg', 0)
-      .order('date_seance', { ascending: true })
+      const { data: logs } = await supabase
+        .from('seances_log')
+        .select('exercice_id, exercice_nom, date_seance, poids_kg, repetitions_faites')
+        .eq('user_id', user.id).not('poids_kg', 'is', null).gt('poids_kg', 0)
+        .order('date_seance', { ascending: true })
 
-    if (!exos) { setLoading(false); return }
+      if (!exos) return
 
-    // Map id → nom actuel (fallback pour anciens logs sans exercice_nom)
-    const nomParId = {}
-    exos.forEach((e) => { nomParId[e.id] = e.nom })
+      const nomParId = {}
+      exos.forEach((e) => { nomParId[e.id] = e.nom })
+      const idsByNom = {}
+      exos.forEach((e) => { if (!idsByNom[e.nom]) idsByNom[e.nom] = []; idsByNom[e.nom].push(e.id) })
 
-    // Map id → [ids du même nom actuel] — pour construire les liens
-    const idsByNom = {}
-    exos.forEach((e) => {
-      if (!idsByNom[e.nom]) idsByNom[e.nom] = []
-      idsByNom[e.nom].push(e.id)
-    })
-
-    // Regrouper les logs par nom (snapshot > nom actuel)
-    const logsParNom = {}
-    logs?.forEach((l) => {
-      const nom = l.exercice_nom || nomParId[l.exercice_id]
-      if (!nom) return
-      if (!logsParNom[nom]) logsParNom[nom] = []
-      logsParNom[nom].push(l)
-    })
-
-    // Noms à afficher = union des noms actuels + noms dans les logs
-    const nomsActuels = new Set(exos.map((e) => e.nom))
-    const nomsLogs = new Set(Object.keys(logsParNom))
-    const tousLesNoms = [...new Set([...nomsActuels, ...nomsLogs])].sort()
-
-    const resultats = tousLesNoms.map((nom) => {
-      const idsAvecCeNom = idsByNom[nom] || []
-      const idRepresentatif = idsAvecCeNom[0] || null
-      const logsNom = logsParNom[nom] || []
-
-      if (logsNom.length === 0) {
-        return { nom, idRepresentatif, idsAvecCeNom, nbSeances: 0, pr: null, dernierPoids: null, tendance: null }
-      }
-
-      const pr = Math.max(...logsNom.map((l) => l.poids_kg))
-
-      // Grouper par date + exercice_id pour distinguer Squat lundi vs Squat jeudi
-      const parSession = {}
-      logsNom.forEach((l) => {
-        const key = `${l.date_seance}__${l.exercice_id}`
-        if (!parSession[key]) parSession[key] = []
-        parSession[key].push(l.poids_kg)
+      const logsParNom = {}
+      logs?.forEach((l) => {
+        const nom = l.exercice_nom || nomParId[l.exercice_id]
+        if (!nom) return
+        if (!logsParNom[nom]) logsParNom[nom] = []
+        logsParNom[nom].push(l)
       })
-      const sessions = Object.entries(parSession)
-        .map(([, poids]) => Math.max(...poids))
-        .sort()
 
-      const dernierPoids = sessions[sessions.length - 1] || null
-      const avantDernier = sessions[sessions.length - 2] || null
-      const tendance = dernierPoids && avantDernier ? dernierPoids - avantDernier : null
+      const nomsActuels = new Set(exos.map((e) => e.nom))
+      const tousLesNoms = [...new Set([...nomsActuels, ...Object.keys(logsParNom)])].sort()
 
-      return {
-        nom, idRepresentatif, idsAvecCeNom,
-        nbSeances: sessions.length, pr, dernierPoids, tendance,
-        sansLienProg: !idRepresentatif, // exercice renommé/supprimé
-      }
-    })
+      const resultats = tousLesNoms.map((nom) => {
+        const idsAvecCeNom = idsByNom[nom] || []
+        const idRepresentatif = idsAvecCeNom[0] || null
+        const logsNom = logsParNom[nom] || []
+        if (logsNom.length === 0) return { nom, idRepresentatif, idsAvecCeNom, nbSeances: 0, pr: null, dernierPoids: null, tendance: null }
+        const pr = Math.max(...logsNom.map((l) => l.poids_kg))
+        const parSession = {}
+        logsNom.forEach((l) => {
+          const key = `${l.date_seance}__${l.exercice_id}`
+          if (!parSession[key]) parSession[key] = []
+          parSession[key].push(l.poids_kg)
+        })
+        const sessions = Object.entries(parSession).map(([, poids]) => Math.max(...poids)).sort()
+        const dernierPoids = sessions[sessions.length - 1] || null
+        const avantDernier = sessions[sessions.length - 2] || null
+        const tendance = dernierPoids && avantDernier ? dernierPoids - avantDernier : null
+        return { nom, idRepresentatif, idsAvecCeNom, nbSeances: sessions.length, pr, dernierPoids, tendance, sansLienProg: !idRepresentatif }
+      })
 
-    setExercices(resultats)
-    setLoading(false)
+      setExercices(resultats)
+    } catch (e) {
+      setErreur(e.message === 'timeout'
+        ? 'Connexion trop lente. Supabase est peut-être indisponible.'
+        : 'Impossible de charger la progression. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const avecDonnees = exercices.filter((e) => e.nbSeances > 0)
@@ -106,6 +86,8 @@ export default function Progression() {
 
       {loading ? (
         <SkeletonListe nb={5} lignes={2} />
+      ) : erreur ? (
+        <ErreurChargement message={erreur} onReessayer={charger} />
       ) : exercices.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-2xl mb-2">📊</p>
