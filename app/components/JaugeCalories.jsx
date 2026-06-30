@@ -1,9 +1,22 @@
 'use client'
 
 export default function JaugeCalories({ consomme, objectif }) {
-  const pourcentage = objectif > 0 ? Math.min(100, (consomme / objectif) * 100) : 0
-  const depasse = consomme > objectif
-  const restant = objectif - consomme
+  const consommeOk = Number.isFinite(consomme) ? consomme : 0
+  const objectifOk = Number.isFinite(objectif) && objectif > 0 ? objectif : null
+
+  if (!objectifOk) {
+    return (
+      <div className="card flex flex-col items-center gap-2 py-8">
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Renseigne ton profil pour voir tes calories cibles
+        </p>
+      </div>
+    )
+  }
+
+  const pourcentage = Math.min(100, (consommeOk / objectifOk) * 100)
+  const depasse = consommeOk > objectifOk
+  const restant = Math.abs(objectifOk - consommeOk)
 
   const couleur = depasse ? '#ef4444' : pourcentage > 85 ? '#f59e0b' : '#FF5722'
 
@@ -25,14 +38,14 @@ export default function JaugeCalories({ consomme, objectif }) {
           />
         </svg>
         <div className="flex flex-col items-center">
-          <span className="text-3xl font-bold tabular-nums">{consomme}</span>
-          <span className="text-xs text-gray-400">/ {objectif} kcal</span>
+          <span className="text-3xl font-bold tabular-nums">{consommeOk}</span>
+          <span className="text-xs text-gray-400">/ {objectifOk} kcal</span>
         </div>
       </div>
 
       <p className={`text-sm font-semibold ${depasse ? 'text-red-500' : 'text-gray-600'}`}>
         {depasse
-          ? `${Math.abs(restant)} kcal au-dessus de l'objectif`
+          ? `${restant} kcal au-dessus de l'objectif`
           : `${restant} kcal restantes aujourd'hui`}
       </p>
     </div>
