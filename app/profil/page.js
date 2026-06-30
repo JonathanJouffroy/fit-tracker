@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import { calculerCaloriesCible, calculerCaloriesExercice, NIVEAUX_ACTIVITE, OBJECTIFS } from '@/lib/calculs'
 import JaugeCalories from '@/app/components/JaugeCalories'
@@ -448,9 +449,17 @@ export default function Profil() {
         </>
       )}
 
+      {/* Bouton tutoriel */}
+      <Link href="/tutoriel">
+        <button className="w-full mt-6 py-3 rounded-xl text-sm font-medium flex items-center justify-center gap-2"
+          style={{ background: 'var(--surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+          <span>📖</span> Voir le tutoriel
+        </button>
+      </Link>
+
       {/* Bouton déconnexion */}
       <button onClick={seDeconnecter}
-        className="w-full mt-6 py-3 rounded-xl text-sm font-medium"
+        className="w-full mt-3 py-3 rounded-xl text-sm font-medium"
         style={{ background: 'var(--surface-2)', color: '#ef4444', border: '1px solid #fee2e2' }}>
         Déconnexion
       </button>
