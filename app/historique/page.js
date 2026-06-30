@@ -6,7 +6,7 @@ import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
 import CartePartage from '@/app/components/CartePartage'
-import { calculerCaloriesCardio } from '@/lib/calculs'
+import { calculerCaloriesCardio, zonesPourSeance } from '@/lib/calculs'
 
 function formatDuree(secondes) {
   if (!secondes) return null
@@ -134,11 +134,15 @@ export default function Historique() {
           }
         })
 
+        // Zones musculaires travaillées (pour la silhouette de partage)
+        const zonesActives = zonesPourSeance(exercices)
+
         return {
           date,
           exercices,
           nbSeries,
           kcalTotal,
+          zonesActives,
           duree: dureeParDate[date]?.duree || null,
           note: dureeParDate[date]?.note || null,
         }
