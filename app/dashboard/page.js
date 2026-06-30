@@ -66,7 +66,7 @@ export default function Dashboard() {
         supabase.from('seances_duree').select('duree_secondes').eq('user_id', user.id).eq('date_seance', today).order('created_at', { ascending: false }).limit(1),
         supabase.from('repas').select('*, options_repas(kcal)').eq('user_id', user.id).eq('date_repas', today),
         supabase.from('profil').select('*').eq('user_id', user.id).single(),
-        supabase.from('mesures').select('poids_kg, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(2),
+        supabase.from('mesures').select('poids_kg, taille_cm, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(2),
       ])
 
       setJourSemaine(jourData)
@@ -98,7 +98,7 @@ export default function Dashboard() {
       if (profilData && mesuresData?.[0]) {
         const { calculerCaloriesCible } = await import('@/lib/calculs')
         const { caloriesCible: cible } = calculerCaloriesCible({
-          poids: mesuresData[0].poids_kg, taille: profilData.taille_cm || mesuresData[0].taille_cm,
+          poids: mesuresData[0].poids_kg, taille: mesuresData[0].taille_cm,
           age: profilData.age, sexe: profilData.sexe,
           niveauActivite: profilData.niveau_activite, objectif: profilData.objectif,
         })
