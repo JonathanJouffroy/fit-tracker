@@ -133,9 +133,9 @@ export default function Tutoriel() {
   }
 
   return (
-    <div className="flex flex-col" style={{ minHeight: '100vh' }}>
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 5.5rem)' }}>
       {/* Bouton fermer */}
-      <div className="flex justify-between items-center pt-2 pb-4">
+      <div className="flex justify-between items-center pb-4 flex-shrink-0">
         <button onClick={() => router.back()} className="text-sm" style={{ color: 'var(--text-faint)' }}>
           ✕ Fermer
         </button>
@@ -154,25 +154,25 @@ export default function Tutoriel() {
         </span>
       </div>
 
-      {/* Contenu du slide */}
-      <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-8">
-        <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-6"
+      {/* Contenu du slide — scrollable si besoin, ne pousse pas les boutons */}
+      <div className="flex-1 flex flex-col items-center justify-center text-center px-1 overflow-y-auto min-h-0">
+        <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-4 flex-shrink-0"
           style={{ background: `${slide.couleur}22` }}>
           {slide.icon}
         </div>
 
-        <h1 className="text-2xl font-bold mb-3" style={{ color: 'var(--text)' }}>
+        <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text)' }}>
           {slide.titre}
         </h1>
 
-        <p className="text-sm mb-5" style={{ color: 'var(--text-muted)', lineHeight: 1.6, maxWidth: '320px' }}>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-muted)', lineHeight: 1.5, maxWidth: '320px' }}>
           {slide.texte}
         </p>
 
         {slide.points && (
-          <div className="flex flex-col gap-2.5 w-full" style={{ maxWidth: '340px' }}>
+          <div className="flex flex-col gap-2 w-full pb-2" style={{ maxWidth: '340px' }}>
             {slide.points.map((p, i) => (
-              <div key={i} className="card flex items-start gap-2.5 py-2.5 text-left">
+              <div key={i} className="card flex items-start gap-2.5 py-2 text-left">
                 <span className="text-sm mt-0.5" style={{ color: slide.couleur }}>●</span>
                 <p className="text-sm flex-1" style={{ color: 'var(--text)', lineHeight: 1.4 }}>{p}</p>
               </div>
@@ -181,8 +181,8 @@ export default function Tutoriel() {
         )}
       </div>
 
-      {/* Navigation */}
-      <div className="flex gap-2 pb-4 pt-2">
+      {/* Navigation — toujours visible en bas, jamais poussée par le contenu */}
+      <div className="flex gap-2 pt-3 flex-shrink-0">
         {!premier && (
           <button onClick={precedent}
             className="flex-1 py-3 rounded-xl text-sm font-medium"
