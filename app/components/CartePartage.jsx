@@ -26,7 +26,7 @@ function rr(ctx, x, y, w, h, r) {
   ctx.closePath()
 }
 
-function dessiner(canvas, seance) {
+async function dessiner(canvas, seance) {
   const W = 1080, H = 1920
   canvas.width = W
   canvas.height = H
@@ -263,19 +263,27 @@ function dessiner(canvas, seance) {
   }
 
   // ---- SILHOUETTE DES ZONES TRAVAILLÉES ----
-  if (y < H - 420 && seance.zonesActives?.length > 0) {
-    y += 20
+  if (y < H - 500 && seance.zonesActives?.length > 0) {
+    y += 30
     ctx.textAlign = 'left'
     ctx.font = 'bold 30px system-ui,sans-serif'
-    ctx.fillStyle = '#888'
+    ctx.fillStyle = '#666'
     ctx.fillText('ZONES TRAVAILLÉES', 80, y)
-    y += 30
+    y += 20
 
-    const silhouetteH = Math.min(380, H - y - 180)
-    const silhouetteW = silhouetteH * 0.5
-    const silhouetteX = W / 2 - silhouetteW / 2
-    dessinerSilhouette(ctx, silhouetteX, y, silhouetteW, silhouetteH, seance.zonesActives)
-    y += silhouetteH + 30
+    const ZONES_FACE_SET = ['epaules', 'pectoraux', 'abdos', 'biceps', 'quadriceps', 'fessiers', 'mollets']
+    const ZONES_DOS_SET = ['dos', 'epaules', 'triceps', 'ischios', 'mollets']
+
+    const aFace = seance.zonesActives.some(z => ZONES_FACE_SET.includes(z))
+    const aDos = seance.zonesActives.some(z => ZONES_DOS_SET.includes(z))
+    const lesDeuxVues = aFace && aDos
+
+    const silhouetteH = Math.min(420, H - y - 160)
+    const silhouetteW = lesDeuxVues ? W - 160 : (W - 160) * 0.6
+    const silhouetteX = lesDeuxVues ? 80 : W / 2 - silhouetteW / 2
+
+    await dessinerSilhouette(ctx, silhouetteX, y, silhouetteW, silhouetteH, seance.zonesActives, { aFace, aDos })
+    y += silhouetteH + 50
   }
 
   // ---- NOTE ----
@@ -319,14 +327,15 @@ export default function CartePartage({ seance, onFermer }) {
 
   useEffect(() => {
     if (!canvasRef.current) return
-    setTimeout(() => {
+    const timer = setTimeout(async () => {
       try {
-        dessiner(canvasRef.current, seance)
+        await dessiner(canvasRef.current, seance)
       } catch (e) {
         console.error('Erreur canvas:', e)
       }
       setGeneree(true)
     }, 150)
+    return () => clearTimeout(timer)
   }, [seance])
 
   async function partager() {
