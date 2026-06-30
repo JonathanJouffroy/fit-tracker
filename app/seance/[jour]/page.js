@@ -7,6 +7,7 @@ import RestTimer from '@/app/components/RestTimer'
 import TimerSeance from '@/app/components/TimerSeance'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import FormCardio from '@/app/components/FormCardio'
+import GifExercice from '@/app/components/GifExercice'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonExercice } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
@@ -345,6 +346,7 @@ export default function SeanceJour() {
                             ~{kcalExo(exo, exo.series)} kcal
                           </p>
                         )}
+                        {!isCardio && <GifExercice nomExercice={exo.nom} />}
                       </div>
                       <div className="flex gap-2 ml-2">
                         <button onClick={() => ouvrirEdition(exo)}
