@@ -32,6 +32,7 @@ export default function Repas() {
   const [userId, setUserId] = useState(null)
   const [repas, setRepas] = useState([])
   const [loading, setLoading] = useState(true)
+  const [repasEnEdition, setRepasEnEdition] = useState(null)
 
   // Onglet actif : 'catalogue' ou 'suggestions'
   const [onglet, setOnglet] = useState('catalogue')
@@ -161,8 +162,11 @@ export default function Repas() {
     toast(`Produit trouvé : ${nomProduit} 📦`)
   }
 
-  async function toggleFait(r) {
-    await supabase.from('repas').update({ fait: !r.fait }).eq('id', r.id)
+  async function modifierRepas(id, champs) {
+    const { error } = await supabase.from('repas').update(champs).eq('id', id)
+    if (error) { toast('Erreur lors de la modification', 'error'); return }
+    toast('Repas modifié ✓')
+    setRepasEnEdition(null)
     charger()
   }
 
@@ -368,26 +372,14 @@ export default function Repas() {
                 <p className="text-sm font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>{t.icon} {t.label}</p>
                 <div className="flex flex-col gap-2">
                   {items.map((r) => (
-                    <div key={r.id} className="card flex items-center justify-between py-3">
-                      <button onClick={() => toggleFait(r)} className="flex items-center gap-3 flex-1 text-left">
-                        <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0"
-                          style={{ background: r.fait ? '#22c55e' : 'transparent', borderColor: r.fait ? '#22c55e' : 'var(--border)' }}>
-                          {r.fait && <span className="text-white text-xs">✓</span>}
-                        </span>
-                        <div>
-                          <span className="text-sm" style={{
-                            color: r.fait ? 'var(--text-faint)' : 'var(--text)',
-                            textDecoration: r.fait ? 'line-through' : 'none',
-                          }}>{r.nom}</span>
-                          {(r.kcal_libre || r.options_repas?.kcal) && (
-                            <p className="text-xs" style={{ color: 'var(--orange)' }}>
-                              {r.options_repas?.kcal || r.kcal_libre} kcal
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                      <button onClick={() => supprimer(r.id)} className="text-sm px-2" style={{ color: 'var(--text-faint)' }}>✕</button>
-                    </div>
+                    <CarteRepasJour
+                      key={r.id}
+                      repas={r}
+                      enEdition={repasEnEdition === r.id}
+                      onEditer={() => setRepasEnEdition(repasEnEdition === r.id ? null : r.id)}
+                      onSauvegarder={(champs) => modifierRepas(r.id, champs)}
+                      onSupprimer={() => supprimer(r.id)}
+                    />
                   ))}
                 </div>
               </div>
@@ -458,6 +450,95 @@ function CarteOption({ option, ingredients, ouvert, onToggle, onChoisir, calorie
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// -------- Carte repas du jour, avec édition inline --------
+function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer }) {
+  const estLibre = !repas.option_repas_id // pas issu du catalogue → modifiable
+  const kcalAffiche = repas.options_repas?.kcal || repas.kcal_libre || 0
+
+  const [nom, setNom] = useState(repas.nom)
+  const [kcal, setKcal] = useState(repas.kcal_libre || '')
+  const [proteines, setProteines] = useState(repas.proteines_libre || '')
+  const [glucides, setGlucides] = useState(repas.glucides_libre || '')
+  const [lipides, setLipides] = useState(repas.lipides_libre || '')
+  const [quantite, setQuantite] = useState(repas.quantite_g || '')
+
+  function sauvegarder(e) {
+    e.preventDefault()
+    onSauvegarder({
+      nom,
+      kcal_libre: kcal ? Number(kcal) : null,
+      proteines_libre: proteines ? Number(proteines) : null,
+      glucides_libre: glucides ? Number(glucides) : null,
+      lipides_libre: lipides ? Number(lipides) : null,
+      quantite_g: quantite ? Number(quantite) : null,
+    })
+  }
+
+  if (enEdition) {
+    return (
+      <form onSubmit={sauvegarder} className="card flex flex-col gap-2.5">
+        <input value={nom} onChange={(e) => setNom(e.target.value)} className="input" required />
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="label">Calories</label>
+            <input type="number" min="0" value={kcal} onChange={(e) => setKcal(e.target.value)} className="input" />
+          </div>
+          <div className="flex-1">
+            <label className="label">Quantité (g)</label>
+            <input type="number" min="0" value={quantite} onChange={(e) => setQuantite(e.target.value)} className="input" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="label">Protéines</label>
+            <input type="number" min="0" step="0.1" value={proteines} onChange={(e) => setProteines(e.target.value)} className="input" />
+          </div>
+          <div className="flex-1">
+            <label className="label">Glucides</label>
+            <input type="number" min="0" step="0.1" value={glucides} onChange={(e) => setGlucides(e.target.value)} className="input" />
+          </div>
+          <div className="flex-1">
+            <label className="label">Lipides</label>
+            <input type="number" min="0" step="0.1" value={lipides} onChange={(e) => setLipides(e.target.value)} className="input" />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={onEditer}
+            className="flex-1 py-2 rounded-xl text-sm font-medium"
+            style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+            Annuler
+          </button>
+          <button type="submit" className="flex-1 btn-primary text-sm py-2">Enregistrer</button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <div className="card flex items-center justify-between py-3">
+      <div className="flex-1">
+        <span className="text-sm" style={{ color: 'var(--text)' }}>{repas.nom}</span>
+        {kcalAffiche > 0 && (
+          <p className="text-xs" style={{ color: 'var(--orange)' }}>
+            {kcalAffiche} kcal
+            {repas.quantite_g && <span style={{ color: 'var(--text-faint)' }}> · {repas.quantite_g}g</span>}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1">
+        {estLibre && (
+          <button onClick={onEditer}
+            className="text-xs px-2 py-1.5 rounded-lg"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            ✏️
+          </button>
+        )}
+        <button onClick={onSupprimer} className="text-sm px-2" style={{ color: 'var(--text-faint)' }}>✕</button>
+      </div>
     </div>
   )
 }
