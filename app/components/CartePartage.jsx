@@ -1,5 +1,6 @@
 'use client'
 import { useRef, useState, useEffect } from 'react'
+import { dessinerSilhouette } from '@/lib/silhouette'
 
 function formatDuree(secondes) {
   if (!secondes) return null
@@ -261,34 +262,20 @@ function dessiner(canvas, seance) {
     })
   }
 
-  // ---- COURBE DÉCORATIVE ----
-  if (y < H - 400) {
-    const curveY = y + 50
-    ctx.save()
-    ctx.globalAlpha = 0.07
-    const pts = Array.from({ length: 22 }, (_, i) => ({
-      x: 80 + (i / 21) * (W - 160),
-      y: curveY + Math.sin(i * 0.7) * 25 + (Math.random() - 0.5) * 15,
-    }))
-    ctx.strokeStyle = '#FF5722'
-    ctx.lineWidth = 5
-    ctx.lineJoin = 'round'
-    ctx.lineCap = 'round'
-    ctx.beginPath()
-    ctx.moveTo(pts[0].x, pts[0].y)
-    pts.slice(1).forEach((p, i) => {
-      const prev = pts[i]
-      const cpX = (prev.x + p.x) / 2
-      ctx.bezierCurveTo(cpX, prev.y, cpX, p.y, p.x, p.y)
-    })
-    ctx.stroke()
-    ctx.lineTo(W - 80, curveY + 80)
-    ctx.lineTo(80, curveY + 80)
-    ctx.closePath()
-    ctx.fillStyle = '#FF5722'
-    ctx.fill()
-    ctx.restore()
-    y = curveY + 100
+  // ---- SILHOUETTE DES ZONES TRAVAILLÉES ----
+  if (y < H - 420 && seance.zonesActives?.length > 0) {
+    y += 20
+    ctx.textAlign = 'left'
+    ctx.font = 'bold 30px system-ui,sans-serif'
+    ctx.fillStyle = '#888'
+    ctx.fillText('ZONES TRAVAILLÉES', 80, y)
+    y += 30
+
+    const silhouetteH = Math.min(380, H - y - 180)
+    const silhouetteW = silhouetteH * 0.5
+    const silhouetteX = W / 2 - silhouetteW / 2
+    dessinerSilhouette(ctx, silhouetteX, y, silhouetteW, silhouetteH, seance.zonesActives)
+    y += silhouetteH + 30
   }
 
   // ---- NOTE ----

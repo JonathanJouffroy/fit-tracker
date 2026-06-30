@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 const tabs = [
+  { href: '/dashboard', label: 'Aujourd\'hui', icon: '📅' },
   { href: '/', label: 'Séances', icon: '🏋️' },
   { href: '/progression', label: 'Progrès', icon: '📈' },
   { href: '/repas', label: 'Repas', icon: '🍽️' },
