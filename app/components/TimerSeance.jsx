@@ -25,8 +25,16 @@ export default function TimerSeance({ jourId }) {
     const stored = localStorage.getItem(cleStorage(jourId))
     if (!stored) return
     try {
-      const { startTs, pausedAt, pausedDuree, statut: s } = JSON.parse(stored)
+      const { startTs, statut: s } = JSON.parse(stored)
       if (s === 'done') return // séance terminée, on ignore
+
+      // Si la séance a commencé il y a plus de 6h → l'ignorer (app fermée longtemps)
+      const heuresEcoulees = (Date.now() - startTs) / (1000 * 60 * 60)
+      if (heuresEcoulees > 6) {
+        localStorage.removeItem(cleStorage(jourId))
+        return
+      }
+
       if (s === 'running' || s === 'paused') {
         setShowModal(true) // proposer reprendre ou nouvelle
       }

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { analyserProgression, progressionVersObjectif } from '@/lib/calculs'
 
 const ICONE_STATUT = {
@@ -27,10 +27,9 @@ export default function CoachExercice({ sessions, nomExercice, userId, supabase,
   const [poidsCible, setPoidsCible] = useState('')
   const [dateCible, setDateCible] = useState('')
   const [loading, setLoading] = useState(false)
-  const [charge, setCharge] = useState(false)
 
-  // Charger l'objectif existant (appelé depuis le parent via ref ou useEffect)
-  useState(() => {
+  // Charger l'objectif existant au montage
+  useEffect(() => {
     if (!userId || !nomExercice || !supabase) return
     supabase.from('objectifs_exercice')
       .select('*')
@@ -45,7 +44,7 @@ export default function CoachExercice({ sessions, nomExercice, userId, supabase,
           setDateCible(data.date_cible)
         }
       })
-  })
+  }, [userId, nomExercice])
 
   const analyse = analyserProgression(sessions)
   const progObjectif = objectif ? progressionVersObjectif(sessions, objectif) : null
