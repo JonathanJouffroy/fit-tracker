@@ -102,7 +102,7 @@ export default function Progression() {
               </p>
               {avecDonnees.map(({ nom, idRepresentatif, idsAvecCeNom, nbSeances, pr, dernierPoids, tendance, sansLienProg }) => {
                 const lien = idRepresentatif
-                  ? `/progression/exercice/${idRepresentatif}?ids=${idsAvecCeNom.join(',')}&nom=${encodeURIComponent(nom)}`
+                  ? `/progression/exercice/${idRepresentatif}?nom=${encodeURIComponent(nom)}`
                   : null
 
                 const contenu = (
