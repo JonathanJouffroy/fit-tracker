@@ -95,14 +95,16 @@ export default function Dashboard() {
       const conso = (repasData || []).reduce((a, r) => a + (r.options_repas?.kcal || r.kcal_libre || 0), 0)
       setCaloriesConsommees(conso)
 
-      if (profilData && mesuresData?.[0]) {
-        const { calculerCaloriesCible } = await import('@/lib/calculs')
-        const { caloriesCible: cible } = calculerCaloriesCible({
-          poids: mesuresData[0].poids_kg, taille: mesuresData[0].taille_cm,
-          age: profilData.age, sexe: profilData.sexe,
-          niveauActivite: profilData.niveau_activite, objectif: profilData.objectif,
-        })
-        setCaloriesCible(cible)
+      if (profilData && mesuresData?.[0]?.poids_kg && mesuresData?.[0]?.taille_cm && profilData.age && profilData.sexe) {
+        try {
+          const { calculerCaloriesCible } = await import('@/lib/calculs')
+          const { caloriesCible: cible } = calculerCaloriesCible({
+            poids: mesuresData[0].poids_kg, taille: mesuresData[0].taille_cm,
+            age: profilData.age, sexe: profilData.sexe,
+            niveauActivite: profilData.niveau_activite, objectif: profilData.objectif,
+          })
+          if (Number.isFinite(cible) && cible > 0) setCaloriesCible(cible)
+        } catch {}
       }
 
       if (mesuresData?.[0]) {
