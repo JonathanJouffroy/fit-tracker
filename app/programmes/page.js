@@ -103,11 +103,11 @@ function FormulaireProgamme({ userId, supabase, toast, onSave, onAnnuler, nomsEx
           programme_id: progId,
           jour_id: Number(jourId),
           nom: exo.nom.trim(),
-          type_exercice: exo.type_exercice || 'muscu',
-          activite_cardio: isCardio ? exo.activite_cardio : null,
-          series: isCardio ? 1 : Number(exo.series),
-          repetitions: isCardio ? 0 : Number(exo.repetitions),
-          repos_secondes: isCardio ? 0 : Number(exo.repos_secondes),
+          type_exercice: exo.type_exercice === 'cardio' ? 'cardio' : 'muscu',
+          activite_cardio: isCardio ? (exo.activite_cardio || 'natation') : null,
+          series: isCardio ? 1 : Number(exo.series) || 3,
+          repetitions: isCardio ? 0 : Number(exo.repetitions) || 10,
+          repos_secondes: isCardio ? 0 : Number(exo.repos_secondes) || 60,
           poids_charge_kg: isCardio ? 0 : Number(exo.poids_charge_kg) || 0,
           ordre: i,
         })
@@ -349,13 +349,19 @@ export default function Programmes() {
     if (!confirm(`Appliquer "${prog.nom}" ? Tes exercices actuels seront remplacés.`)) return
     setApplicationEnCours(prog.id)
     await supabase.from('exercices').delete().eq('user_id', userId)
-    const nouveaux = (prog.programme_exercices || []).map((pe) => ({
-      user_id: userId, jour_id: pe.jour_id, nom: pe.nom,
-      type_exercice: pe.type_exercice || 'muscu',
-      activite_cardio: pe.activite_cardio || null,
-      series: pe.series, repetitions: pe.repetitions,
-      repos_secondes: pe.repos_secondes, poids_charge_kg: pe.poids_charge_kg || 0, ordre: pe.ordre,
-    }))
+    const nouveaux = (prog.programme_exercices || []).map((pe) => {
+      const isCardio = pe.type_exercice === 'cardio'
+      return {
+        user_id: userId, jour_id: pe.jour_id, nom: pe.nom,
+        type_exercice: isCardio ? 'cardio' : 'muscu',
+        activite_cardio: isCardio ? (pe.activite_cardio || 'natation') : null,
+        series: pe.series || 3,
+        repetitions: pe.repetitions || 10,
+        repos_secondes: pe.repos_secondes || 60,
+        poids_charge_kg: pe.poids_charge_kg || 0,
+        ordre: pe.ordre,
+      }
+    })
     if (nouveaux.length > 0) await supabase.from('exercices').insert(nouveaux)
     setApplicationEnCours(null)
     toast('Programme appliqué à ta semaine ✓')
