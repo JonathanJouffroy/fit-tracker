@@ -8,6 +8,7 @@ import TimerSeance from '@/app/components/TimerSeance'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
 import FormCardio from '@/app/components/FormCardio'
 import GifExercice from '@/app/components/GifExercice'
+import Drawer from '@/app/components/Drawer'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonExercice } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
@@ -32,6 +33,7 @@ export default function SeanceJour() {
   const [nomsExistants, setNomsExistants] = useState([])
   const [idsByNom, setIdsByNom] = useState({})
   const [cardioEnCours, setCardioEnCours] = useState(null)
+  const [drawerExo, setDrawerExo] = useState(null) // exercice dont on affiche le drawer
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -355,14 +357,16 @@ export default function SeanceJour() {
                             ~{kcalExo(exo, exo.series)} kcal
                           </p>
                         )}
-                        {exo.note && (
-                          <p className="text-xs mt-1 italic" style={{ color: 'var(--text-faint)', whiteSpace: 'pre-wrap' }}>
-                            📝 {exo.note}
-                          </p>
-                        )}
-                        {!isCardio && <GifExercice nomExercice={exo.nom} />}
                       </div>
-                      <div className="flex gap-2 ml-2">
+                      <div className="flex gap-1 ml-2">
+                        {/* Bouton infos (note + technique) → ouvre le drawer */}
+                        {(exo.note || !isCardio) && (
+                          <button onClick={() => setDrawerExo(exo)}
+                            className="text-xs px-2 py-1 rounded-lg flex items-center gap-1"
+                            style={{ background: 'var(--surface-2)', color: exo.note ? 'var(--orange)' : 'var(--text-faint)' }}>
+                            {exo.note ? '📝' : 'ℹ️'}
+                          </button>
+                        )}
                         <button onClick={() => ouvrirEdition(exo)}
                           className="text-xs px-2 py-1 rounded-lg"
                           style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>✏️</button>
@@ -503,5 +507,34 @@ export default function SeanceJour() {
         </form>
       )}
     </div>
+
+    {/* Drawer infos exercice : note + technique */}
+    <Drawer
+      ouvert={!!drawerExo}
+      onFermer={() => setDrawerExo(null)}
+      titre={drawerExo?.nom || ''}>
+      {drawerExo && (
+        <div className="flex flex-col gap-4">
+          {/* Note */}
+          {drawerExo.note ? (
+            <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: 'var(--orange)' }}>📝 Ta note</p>
+              <p className="text-sm italic" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{drawerExo.note}</p>
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+              Aucune note pour cet exercice. Ajoutes-en une via ✏️ pour noter tes sensations ou cues techniques.
+            </p>
+          )}
+
+          {/* Technique */}
+          {drawerExo.type_exercice !== 'cardio' && (
+            <div>
+              <GifExercice nomExercice={drawerExo.nom} />
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
   )
 }
