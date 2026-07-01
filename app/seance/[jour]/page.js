@@ -50,6 +50,7 @@ export default function SeanceJour() {
   const [editRepetitions, setEditRepetitions] = useState(10)
   const [editRepos, setEditRepos] = useState(60)
   const [editPoidsCharge, setEditPoidsCharge] = useState('')
+  const [editNote, setEditNote] = useState('')
 
   const storageKey = `seance-${jourId}-${new Date().toISOString().split('T')[0]}`
 
@@ -166,6 +167,7 @@ export default function SeanceJour() {
     setEditNom(exo.nom); setEditSeries(exo.series)
     setEditRepetitions(exo.repetitions); setEditRepos(exo.repos_secondes)
     setEditPoidsCharge(exo.poids_charge_kg || '')
+    setEditNote(exo.note || '')
     setShowForm(false)
   }
 
@@ -176,6 +178,7 @@ export default function SeanceJour() {
       nom: editNom, series: Number(editSeries),
       repetitions: Number(editRepetitions), repos_secondes: Number(editRepos),
       poids_charge_kg: editPoidsCharge ? Number(editPoidsCharge) : 0,
+      note: editNote.trim() || null,
     }).eq('id', exoEnEdition.id)
     if (error) { toast('Erreur lors de la modification', 'error'); return }
     toast(`${editNom} modifié ✓`)
@@ -314,6 +317,12 @@ export default function SeanceJour() {
                           <input type="number" min="0" step="0.5" value={editPoidsCharge} onChange={(e) => setEditPoidsCharge(e.target.value)} className="input" /></div>
                       </div>
                     )}
+                    <div>
+                      <label className="label">📝 Note personnelle</label>
+                      <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)}
+                        placeholder="Ex: Genou gauche fragile, prise large, gainage..."
+                        rows={2} className="input resize-none text-sm" />
+                    </div>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setExoEnEdition(null)}
                         className="flex-1 py-2 rounded-xl text-sm font-medium"
@@ -344,6 +353,11 @@ export default function SeanceJour() {
                         {!isCardio && poidsCorps && (
                           <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--orange)' }}>
                             ~{kcalExo(exo, exo.series)} kcal
+                          </p>
+                        )}
+                        {exo.note && (
+                          <p className="text-xs mt-1 italic" style={{ color: 'var(--text-faint)', whiteSpace: 'pre-wrap' }}>
+                            📝 {exo.note}
                           </p>
                         )}
                         {!isCardio && <GifExercice nomExercice={exo.nom} />}
