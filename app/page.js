@@ -91,11 +91,11 @@ export default function Home() {
                     <p className="font-semibold text-lg">
                       {jour.nom} {isToday && <span className="text-orange-600 text-sm">· aujourd'hui</span>}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
                       {nbExos > 0 ? `${nbExos} exercice${nbExos > 1 ? 's' : ''}` : 'Repos / aucun exercice'}
                     </p>
                   </div>
-                  <span className="text-gray-300 text-xl">›</span>
+                  <span className="text-xl" style={{ color: 'var(--text-faint)' }}>›</span>
                 </div>
               </Link>
             )
