@@ -213,9 +213,10 @@ export default function Profil() {
 
   const imcActuel = poids && taille ? calculerIMC(Number(poids), Number(taille)) : null
   const cat = imcActuel ? categorieIMC(imcActuel) : null
-  const resultatCalories = (poids && taille && age && profilId)
+  const _calc = (poids && taille && age && profilId)
     ? calculerCaloriesCible({ poids: Number(poids), taille: Number(taille), age: Number(age), sexe, niveauActivite, objectif })
     : null
+  const resultatCalories = (_calc && Number.isFinite(_calc.caloriesCible) && _calc.caloriesCible > 0) ? _calc : null
 
   // Échelle max pour le graphique
   const maxVal = Math.max(...calories7jours.map(d => Math.max(d.consomme, d.brule)), resultatCalories?.caloriesCible || 0, 100)
