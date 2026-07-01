@@ -257,6 +257,7 @@ export default function SeanceJour() {
   const kcalFait = exosMuscu.reduce((a, e) => a + kcalExo(e, seriesFaites[e.id] || 0), 0)
 
   return (
+    <>
     <div>
       <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
       <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
@@ -536,5 +537,6 @@ export default function SeanceJour() {
         </div>
       )}
     </Drawer>
+    </>
   )
 }
