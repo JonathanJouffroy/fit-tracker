@@ -524,7 +524,7 @@ export default function SeanceJour() {
             </div>
           ) : (
             <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
-              Aucune note pour cet exercice. Ajoutes-en une via ✏️ pour noter tes sensations ou cues techniques.
+              Aucune note pour cet exercice. Ajoutes-en une via ✏️ pour noter tes sensations ou tes indications techniques.
             </p>
           )}
 
