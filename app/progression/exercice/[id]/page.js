@@ -102,6 +102,9 @@ export default function ProgressionExercice() {
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState(null)
   const [userId, setUserId] = useState(null)
+  const [note, setNote] = useState('')
+  const [editNote, setEditNote] = useState(false)
+  const [noteTemp, setNoteTemp] = useState('')
 
   useEffect(() => { charger() }, [exerciceId])
 
@@ -113,16 +116,23 @@ export default function ProgressionExercice() {
       if (!user) return
       setUserId(user.id)
 
-      const idsParam = searchParams.get('ids')
-      const ids = idsParam ? idsParam.split(',').map(Number) : [Number(exerciceId)]
-
+      // Récupérer le nom (depuis URL ou depuis la DB)
       const nomParam = searchParams.get('nom')
-      if (nomParam) {
-        setNomExercice(decodeURIComponent(nomParam))
-      } else {
-        const { data: exo } = await supabase.from('exercices').select('nom').eq('id', exerciceId).single()
-        setNomExercice(exo?.nom || '')
-      }
+      const nom = nomParam
+        ? decodeURIComponent(nomParam)
+        : (await supabase.from('exercices').select('nom').eq('id', exerciceId).single()).data?.nom || ''
+      setNomExercice(nom)
+
+      // Récupérer tous les IDs ayant ce nom + la note de l'exercice représentatif
+      const { data: exosAvecCeNom } = await supabase
+        .from('exercices')
+        .select('id, note')
+        .eq('user_id', user.id)
+        .eq('nom', nom)
+      const ids = exosAvecCeNom?.map(e => e.id) || [Number(exerciceId)]
+      const noteExo = exosAvecCeNom?.[0]?.note || ''
+      setNote(noteExo)
+      setNoteTemp(noteExo)
 
       const { data: logs } = await supabase
         .from('seances_log')
@@ -157,6 +167,19 @@ export default function ProgressionExercice() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function sauvegarderNote() {
+    if (!userId) return
+    // Mettre à jour la note sur tous les exercices avec ce nom
+    const { data: exos } = await supabase.from('exercices')
+      .select('id').eq('user_id', userId).eq('nom', nomExercice)
+    if (exos?.length > 0) {
+      await supabase.from('exercices').update({ note: noteTemp.trim() || null })
+        .in('id', exos.map(e => e.id))
+    }
+    setNote(noteTemp.trim())
+    setEditNote(false)
   }
 
   if (loading) return (
@@ -268,6 +291,43 @@ export default function ProgressionExercice() {
             couleur="#3B82F6"
             unite="kg"
           />
+
+          {/* Note personnelle sur l'exercice */}
+          <div className="card mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>📝 Note personnelle</p>
+              {!editNote && (
+                <button onClick={() => { setEditNote(true); setNoteTemp(note) }}
+                  className="text-xs px-2 py-1 rounded-lg"
+                  style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                  {note ? 'Modifier' : '+ Ajouter'}
+                </button>
+              )}
+            </div>
+            {editNote ? (
+              <div className="flex flex-col gap-2">
+                <textarea value={noteTemp} onChange={(e) => setNoteTemp(e.target.value)}
+                  placeholder="Ex: Genou gauche fragile, prise large, gainage important..."
+                  rows={3} className="input resize-none text-sm" autoFocus />
+                <div className="flex gap-2">
+                  <button onClick={() => setEditNote(false)}
+                    className="flex-1 py-2 rounded-xl text-sm"
+                    style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+                    Annuler
+                  </button>
+                  <button onClick={sauvegarderNote} className="flex-1 btn-primary text-sm py-2">
+                    Sauvegarder
+                  </button>
+                </div>
+              </div>
+            ) : note ? (
+              <p className="text-sm italic" style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{note}</p>
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+                Aucune note. Utilise ce champ pour noter les sensations, précautions ou cues techniques.
+              </p>
+            )}
+          </div>
 
           {/* Historique */}
           <div className="card">
