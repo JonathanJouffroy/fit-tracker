@@ -324,7 +324,7 @@ export default function ProgressionExercice() {
               <p className="text-sm italic" style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{note}</p>
             ) : (
               <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
-                Aucune note. Utilise ce champ pour noter les sensations, précautions ou cues techniques.
+                Aucune note. Utilise ce champ pour noter les sensations, précautions ou tes indications techniques.
               </p>
             )}
           </div>
