@@ -22,7 +22,7 @@ export default function JaugeCalories({ consomme, objectif }) {
 
   return (
     <div className="card flex flex-col items-center gap-3">
-      <p className="text-sm text-gray-500 font-medium">Calories du jour</p>
+      <p className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>Calories du jour</p>
 
       <div className="relative w-44 h-44 flex items-center justify-center">
         <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
@@ -39,11 +39,11 @@ export default function JaugeCalories({ consomme, objectif }) {
         </svg>
         <div className="flex flex-col items-center">
           <span className="text-3xl font-bold tabular-nums">{consommeOk}</span>
-          <span className="text-xs text-gray-400">/ {objectifOk} kcal</span>
+          <span className="text-xs" style={{ color: 'var(--text-faint)' }}>/ {objectifOk} kcal</span>
         </div>
       </div>
 
-      <p className={`text-sm font-semibold ${depasse ? 'text-red-500' : 'text-gray-600'}`}>
+      <p className="text-sm font-semibold" style={{ color: depasse ? '#ef4444' : 'var(--text-muted)' }}>
         {depasse
           ? `${restant} kcal au-dessus de l'objectif`
           : `${restant} kcal restantes aujourd'hui`}

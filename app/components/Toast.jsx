@@ -19,7 +19,8 @@ export function ToastProvider({ children }) {
         {toasts.map((t) => (
           <div key={t.id}
             className={`w-full px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white flex items-center gap-2 animate-slide-down
-              ${t.type === 'success' ? 'bg-green-500' : t.type === 'error' ? 'bg-red-500' : 'bg-gray-700'}`}>
+              ${t.type === 'success' ? 'bg-green-500' : t.type === 'error' ? 'bg-red-500' : ''}`}
+              style={{ background: t.type === 'info' ? 'var(--surface)' : undefined, border: t.type === 'info' ? '1px solid var(--border)' : undefined }}>
             <span>{t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ'}</span>
             {t.message}
           </div>
