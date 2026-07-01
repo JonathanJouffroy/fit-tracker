@@ -58,14 +58,19 @@ export default function NutritionHistorique() {
           .order('created_at', { ascending: false }).limit(1),
       ])
 
-      if (profil && mesures?.[0]) {
-        const { calculerCaloriesCible } = await import('@/lib/calculs')
-        const { caloriesCible } = calculerCaloriesCible({
-          poids: mesures[0].poids_kg, taille: mesures[0].taille_cm,
-          age: profil.age, sexe: profil.sexe,
-          niveauActivite: profil.niveau_activite, objectif: profil.objectif,
-        })
-        setObjectifKcal(caloriesCible)
+      // Calcul calories cibles seulement si profil + mesure complète disponibles
+      if (profil && mesures?.[0]?.poids_kg && mesures?.[0]?.taille_cm && profil.age && profil.sexe) {
+        try {
+          const { calculerCaloriesCible } = await import('@/lib/calculs')
+          const { caloriesCible } = calculerCaloriesCible({
+            poids: mesures[0].poids_kg, taille: mesures[0].taille_cm,
+            age: profil.age, sexe: profil.sexe,
+            niveauActivite: profil.niveau_activite, objectif: profil.objectif,
+          })
+          if (Number.isFinite(caloriesCible) && caloriesCible > 0) {
+            setObjectifKcal(caloriesCible)
+          }
+        } catch {}
       }
 
       const dateDebut = new Date(Date.now() - (periode - 1) * 86400000).toISOString().split('T')[0]
