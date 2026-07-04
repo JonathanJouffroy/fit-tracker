@@ -127,16 +127,22 @@ export default function Dashboard() {
       if (logsData?.length) {
         const { calculerCaloriesCardio: calcCardio, calculerCaloriesExercice: calcMuscu } = await import('@/lib/calculs')
 
-        // Calories cardio
+        // Calories cardio et circuit — logs avec kcal stocké ou duree_minutes
         logsData.forEach(l => {
-          if (l.kcal) {
-            kcalBruleesTotal += l.kcal
-          } else if (l.duree_minutes && poids) {
-            const exoMatch = exosJour.find(e =>
-              (String(e.id) === String(l.exercice_id) || e.nom === l.exercice_nom) &&
-              e.type_exercice === 'cardio'
-            )
-            if (exoMatch?.activite_cardio) {
+          // Logs circuit → ignorer pour muscu, mais compter kcal si stocké
+          if (l.exercice_nom?.includes(' — ')) {
+            if (l.kcal) kcalBruleesTotal += l.kcal
+            return
+          }
+          // Log cardio : kcal stocké en priorité, sinon recalcul
+          const exoMatch = exosJour.find(e =>
+            (String(e.id) === String(l.exercice_id) || e.nom === l.exercice_nom) &&
+            e.type_exercice === 'cardio'
+          )
+          if (exoMatch) {
+            if (l.kcal) {
+              kcalBruleesTotal += l.kcal
+            } else if (l.duree_minutes && poids && exoMatch.activite_cardio) {
               kcalBruleesTotal += calcCardio({
                 activiteId: exoMatch.activite_cardio,
                 dureeMinutes: l.duree_minutes,
@@ -183,7 +189,8 @@ export default function Dashboard() {
       }
 
       if (mesuresData?.[0]) {
-        const dateMesure = new Date(mesuresData[0].created_at).toISOString().split('T')[0]
+        const dm = new Date(mesuresData[0].created_at)
+        const dateMesure = `${dm.getFullYear()}-${String(dm.getMonth()+1).padStart(2,'0')}-${String(dm.getDate()).padStart(2,'0')}`
         if (dateMesure === today) setPoidsAujourdhui(mesuresData[0].poids_kg)
         setDernierPoids(mesuresData[0].poids_kg)
       }
