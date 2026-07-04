@@ -40,6 +40,7 @@ export default function SeanceJour() {
   const [logsJourMemo, setLogsJourMemo] = useState([])
   const [circuitEnCours, setCircuitEnCours] = useState(null)
   const [circuits, setCircuits] = useState([])
+  const [dragId, setDragId] = useState(null) // id de l'exercice en cours de déplacement
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -100,19 +101,37 @@ export default function SeanceJour() {
       if (!user) return
       setUserId(user.id)
 
+      // Cache localStorage pour la table jours (données statiques)
+      const cacheKey = `jour-${jourId}`
+      let jourData = null
+      try {
+        const cached = localStorage.getItem(cacheKey)
+        if (cached) jourData = JSON.parse(cached)
+      } catch {}
+
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
-      const [[{ data: jourData }, { data: exosData }, { data: mesures }, { data: tousExos }, { data: circuitsData }]] = await Promise.all([
-        Promise.race([
-          Promise.all([
-            supabase.from('jours').select('*').eq('id', jourId).single(),
-            supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
-            supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
-            supabase.from('exercices').select('id, nom').eq('user_id', user.id),
-            supabase.from('circuits').select('*, circuit_exercices(*)').eq('user_id', user.id).eq('jour_id', jourId).order('created_at'),
-          ]),
-          timeout,
+      const [
+        { data: exosData },
+        { data: mesures },
+        { data: tousExos },
+        { data: circuitsData },
+        jourResult,
+      ] = await Promise.race([
+        Promise.all([
+          supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
+          supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
+          supabase.from('exercices').select('id, nom').eq('user_id', user.id),
+          supabase.from('circuits').select('*, circuit_exercices(*)').eq('user_id', user.id).eq('jour_id', jourId).order('created_at'),
+          jourData ? Promise.resolve(null) : supabase.from('jours').select('*').eq('id', jourId).single(),
         ]),
+        timeout,
       ])
+
+      // Mettre à jour le cache si on vient de charger le jour
+      if (jourResult?.data) {
+        jourData = jourResult.data
+        try { localStorage.setItem(cacheKey, JSON.stringify(jourData)) } catch {}
+      }
 
       setJour(jourData)
       setExercices(exosData || [])
@@ -290,6 +309,21 @@ export default function SeanceJour() {
     rechargerExercices(userId)
   }
 
+  async function deplacerExercice(idSource, idCible) {
+    if (idSource === idCible) return
+    const liste = [...exercices]
+    const iSource = liste.findIndex(e => e.id === idSource)
+    const iCible = liste.findIndex(e => e.id === idCible)
+    if (iSource === -1 || iCible === -1) return
+    const [deplace] = liste.splice(iSource, 1)
+    liste.splice(iCible, 0, deplace)
+    setExercices(liste)
+    // Persister le nouvel ordre en DB
+    await Promise.all(liste.map((e, i) =>
+      supabase.from('exercices').update({ ordre: i }).eq('id', e.id)
+    ))
+  }
+
   async function terminerSerie(exercice) {
     const fait = (seriesFaites[exercice.id] || 0) + 1
     setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
@@ -319,11 +353,6 @@ export default function SeanceJour() {
       deniveleM: metriques.denivele_m || 0,
     })) : 0
 
-    // Log pour débugger
-    console.log('terminerCardio - exo:', exo.id, exo.nom, exo.activite_cardio)
-    console.log('terminerCardio - metriques:', metriques)
-    console.log('terminerCardio - kcal:', kcalCardio)
-
     // Insert minimal d'abord (sans les colonnes optionnelles)
     const { data: logData, error: erreurInsert } = await supabase
       .from('seances_log')
@@ -344,12 +373,9 @@ export default function SeanceJour() {
       .select('id')
 
     if (erreurInsert) {
-      console.error('Erreur insert cardio:', erreurInsert)
       toast(`Erreur: ${erreurInsert.message}`, 'error')
       return
     }
-
-    console.log('Insert cardio réussi, id:', logData?.[0]?.id)
 
     setSeriesFaites((s) => ({ ...s, [exo.id]: 1 }))
     setKcalCardioTotal((prev) => prev + (kcalCardio || 0))
@@ -442,7 +468,13 @@ export default function SeanceJour() {
           const enEdition = exoEnEdition?.id === exo.id
 
           return (
-            <div key={exo.id} className="flex flex-col gap-3">
+            <div key={exo.id} className="flex flex-col gap-3"
+              draggable
+              onDragStart={() => setDragId(exo.id)}
+              onDragEnd={() => setDragId(null)}
+              onDragOver={e => e.preventDefault()}
+              onDrop={() => { if (dragId && dragId !== exo.id) deplacerExercice(dragId, exo.id) }}
+              style={{ opacity: dragId === exo.id ? 0.5 : 1, cursor: 'grab' }}>
               {cardioEnCours?.id === exo.id && (
                 <FormCardio exo={exo} poidsCorps={poidsCorps}
                   onTerminer={(m) => terminerCardio(exo, m)}
