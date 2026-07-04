@@ -242,8 +242,8 @@ export default function SeanceJour() {
         poids_kg: null,
         duree_minutes: metriques.duree_minutes || null,
         distance_m: metriques.distance_m || null,
-        denivele_m: metriques.denivele_m || null,
-        nb_sauts: metriques.nb_sauts || null,
+        denivele_m: metriques.denivele_m ? Math.round(metriques.denivele_m) : null,
+        nb_sauts: metriques.nb_sauts ? Math.round(metriques.nb_sauts) : null,
         note_cardio: metriques.note_cardio || null,
         kcal: kcalCardio || null,
       }])
