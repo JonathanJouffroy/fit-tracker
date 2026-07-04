@@ -1,10 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import JaugeCalories from '@/app/components/JaugeCalories'
+import GoogleFitSteps from '@/app/components/GoogleFitSteps'
 import { SkeletonCard, SkeletonJauge } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
 
@@ -20,6 +21,20 @@ const TYPES_REPAS = [
 export default function Dashboard() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Afficher un message selon le retour OAuth Google Fit
+  useEffect(() => {
+    const googleFit = searchParams.get('google_fit')
+    if (googleFit === 'success') {
+      // Nettoyer l'URL sans recharger la page
+      window.history.replaceState({}, '', '/dashboard')
+    } else if (googleFit === 'error') {
+      window.history.replaceState({}, '', '/dashboard')
+    } else if (googleFit === 'denied') {
+      window.history.replaceState({}, '', '/dashboard')
+    }
+  }, [searchParams])
 
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState(null)
@@ -156,10 +171,13 @@ export default function Dashboard() {
 
       {/* Jauge calories */}
       {caloriesCible && (
-        <div className="mb-6">
+        <div className="mb-4">
           <JaugeCalories consomme={caloriesConsommees} objectif={caloriesCible} />
         </div>
       )}
+
+      {/* Pas du jour via Google Fit */}
+      <GoogleFitSteps />
 
       {/* Carte séance du jour */}
       <Link href={jourSemaine ? `/seance/${jourSemaine.id}` : '/'}>
