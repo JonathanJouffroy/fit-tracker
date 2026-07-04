@@ -625,9 +625,9 @@ export default function SeanceJour() {
           )}
         </div>
       )}
-    </div>
+    </Drawer>
 
-    {/* Mode circuit — en dehors du Drawer, plein écran */}
+    {/* Mode circuit — plein écran, après le Drawer */}
     {circuitActif && (
       <CircuitMode
         exercices={exercices}
@@ -636,8 +636,6 @@ export default function SeanceJour() {
         onTerminer={() => { setCircuitActif(false); chargerTout() }}
       />
     )}
-
-    </Drawer>
     </>
   )
 }
