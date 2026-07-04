@@ -79,7 +79,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase.from('jours').select('*').eq('numero', numeroJour).single(),
         supabase.from('exercices').select('*').eq('user_id', user.id),
-        supabase.from('seances_log').select('exercice_id, serie_numero, kcal, duree_minutes').eq('user_id', user.id).eq('date_seance', today),
+        supabase.from('seances_log').select('exercice_id, exercice_nom, serie_numero, kcal, duree_minutes').eq('user_id', user.id).eq('date_seance', today),
         supabase.from('seances_duree').select('duree_secondes').eq('user_id', user.id).eq('date_seance', today).order('created_at', { ascending: false }).limit(1),
         supabase.from('repas').select('*, options_repas(kcal)').eq('user_id', user.id).eq('date_repas', today),
         supabase.from('profil').select('*').eq('user_id', user.id).single(),
@@ -96,32 +96,46 @@ export default function Dashboard() {
       setSeriesTotal(exosMuscu.reduce((a, e) => a + (e.series || 0), 0))
 
       const logsParExo = {}
+      const logsParNom = {}
       logsData?.forEach(l => {
-        if (!l.exercice_id) return
-        const key = String(l.exercice_id)
-        if (!logsParExo[key]) logsParExo[key] = 0
-        logsParExo[key]++
+        if (l.exercice_id) {
+          const key = String(l.exercice_id)
+          logsParExo[key] = (logsParExo[key] || 0) + 1
+        }
+        if (l.exercice_nom) {
+          logsParNom[l.exercice_nom] = (logsParNom[l.exercice_nom] || 0) + 1
+        }
       })
 
-      const seriesFaitesCount = exosMuscu.reduce((a, e) => a + Math.min(logsParExo[String(e.id)] || 0, e.series || 0), 0)
+      const seriesFaitesCount = exosMuscu.reduce((a, e) => {
+        const count = logsParExo[String(e.id)] || logsParNom[e.nom] || 0
+        return a + Math.min(count, e.series || 0)
+      }, 0)
       setSeriesFaites(seriesFaitesCount)
 
       setCardioTotal(exosCardio.length)
-      setCardioFait(exosCardio.filter(e => (logsParExo[String(e.id)] || 0) >= 1).length)
+      setCardioFait(exosCardio.filter(e =>
+        (logsParExo[String(e.id)] || 0) >= 1 ||
+        (logsParNom[e.nom] || 0) >= 1
+      ).length)
 
-      // Calories brûlées — depuis kcal stocké OU recalculé depuis duree_minutes
+      // Calories brûlées — kcal stocké OU recalculé depuis duree_minutes
       const poids = mesuresData?.[0]?.poids_kg || null
       let kcalBruleesTotal = 0
-      if (poids) {
+      if (logsData?.length) {
         const { calculerCaloriesCardio: calcCardio } = await import('@/lib/calculs')
-        logsData?.forEach(l => {
-          if (l.kcal) { kcalBruleesTotal += l.kcal }
-          else if (l.duree_minutes && poids) {
-            // Recalcul depuis les métriques (anciens logs)
-            const exoCardio = exosJour.find(e => String(e.id) === String(l.exercice_id) && e.type_exercice === 'cardio')
-            if (exoCardio) {
+        logsData.forEach(l => {
+          if (l.kcal) {
+            kcalBruleesTotal += l.kcal
+          } else if (l.duree_minutes && poids) {
+            // Trouver l'exercice cardio correspondant pour avoir activite_cardio
+            const exoMatch = exosJour.find(e =>
+              (String(e.id) === String(l.exercice_id) || e.nom === l.exercice_nom) &&
+              e.type_exercice === 'cardio'
+            )
+            if (exoMatch?.activite_cardio) {
               kcalBruleesTotal += calcCardio({
-                activiteId: exoCardio.activite_cardio,
+                activiteId: exoMatch.activite_cardio,
                 dureeMinutes: l.duree_minutes,
                 poidsCorps: poids,
               })
