@@ -60,10 +60,6 @@ export default function SeanceJour() {
     { id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }
   ])
 
-  // Circuit en cours de guidage
-  const [circuitEnCours, setCircuitEnCours] = useState(null) // { circuit, exos }
-  const [circuits, setCircuits] = useState([])
-
   // Formulaire édition
   const [exoEnEdition, setExoEnEdition] = useState(null)
   const [editNom, setEditNom] = useState('')
