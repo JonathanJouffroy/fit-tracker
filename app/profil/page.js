@@ -108,11 +108,10 @@ export default function Profil() {
     function calcBrule(logs, poidsC) {
       if (!logs?.length) return 0
       let total = 0
-      const parExo = {}
       logs.forEach((l) => {
         // 1. Calories cardio stockées directement
         if (l.kcal) { total += l.kcal; return }
-        // 2. Calories cardio recalculées depuis les métriques (anciens logs sans kcal)
+        // 2. Calories cardio recalculées depuis les métriques
         if (l.duree_minutes && l.activite_cardio && poidsC) {
           total += calculerCaloriesCardio({
             activiteId: l.activite_cardio,
@@ -122,24 +121,22 @@ export default function Profil() {
           })
           return
         }
-        // 3. Calories muscu calculées depuis les séries
+        // 3. Calories muscu — série par série
         const exo = exoParId[l.exercice_id]
         if (!exo || !poidsC) return
-        const key = String(l.exercice_id)
-        if (!parExo[key]) parExo[key] = { count: 0, exo }
-        parExo[key].count += 1
+        total += calculerCaloriesExercice({
+          series: 1,
+          repetitions: l.repetitions_faites || exo.repetitions || 10,
+          poidsCharge: exo.poids_charge_kg || 0,
+          poidsCorps: poidsC,
+        })
       })
-      total += Object.values(parExo).reduce((acc, { count, exo }) =>
-        acc + calculerCaloriesExercice({
-          series: count, repetitions: exo.repetitions,
-          poidsCharge: exo.poids_charge_kg, poidsCorps: poidsC
-        }), 0)
       return Math.round(total)
     }
 
     // Calories brûlées aujourd'hui
     const { data: logsJour } = await supabase.from('seances_log')
-      .select('exercice_id, kcal, duree_minutes, denivele_m')
+      .select('exercice_id, kcal, duree_minutes, denivele_m, repetitions_faites, activite_cardio')
       .eq('user_id', user.id).eq('date_seance', today)
     setCaloriesBrulees(calcBrule(logsJour, poidsCorps))
 
@@ -151,7 +148,7 @@ export default function Profil() {
     const [{ data: repas7 }, { data: logs7 }] = await Promise.all([
       supabase.from('repas').select('date_repas, options_repas(kcal), kcal_libre')
         .eq('user_id', user.id).gte('date_repas', dates7[0]).lte('date_repas', dates7[6]),
-      supabase.from('seances_log').select('date_seance, exercice_id, kcal, duree_minutes, denivele_m')
+      supabase.from('seances_log').select('date_seance, exercice_id, kcal, duree_minutes, denivele_m, repetitions_faites, activite_cardio')
         .eq('user_id', user.id).gte('date_seance', dates7[0]).lte('date_seance', dates7[6]),
     ])
 
@@ -167,7 +164,7 @@ export default function Profil() {
     const [{ data: repasMois }, { data: logsMois }] = await Promise.all([
       supabase.from('repas').select('date_repas, options_repas(kcal), kcal_libre')
         .eq('user_id', user.id).gte('date_repas', debutMois),
-      supabase.from('seances_log').select('date_seance, exercice_id, kcal, duree_minutes, denivele_m')
+      supabase.from('seances_log').select('date_seance, exercice_id, kcal, duree_minutes, denivele_m, repetitions_faites, activite_cardio')
         .eq('user_id', user.id).gte('date_seance', debutMois),
     ])
 
