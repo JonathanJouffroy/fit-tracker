@@ -112,9 +112,6 @@ export async function GET() {
 
     const fitData = await fitResponse.json()
 
-    // Log temporaire pour débugger
-    console.log('Google Fit response buckets:', JSON.stringify(fitData.bucket?.slice(0,2), null, 2))
-
     // Extraire le nombre de pas
     let totalPas = 0
     fitData.bucket?.forEach((bucket) => {
