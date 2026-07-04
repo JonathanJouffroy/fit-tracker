@@ -348,7 +348,7 @@ export default function SeanceJour() {
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Calories brûlées</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {kcalMuscuFait > 0 && `Muscu: ${kcalMuscuFait} kcal`}
+              {kcalMuscuFait > 0 && `Muscu: ${Math.round(kcalMuscuFait)} kcal`}
               {kcalMuscuFait > 0 && kcalCardioTotal > 0 && ' · '}
               {kcalCardioTotal > 0 && `Cardio: ${kcalCardioTotal} kcal`}
             </p>
@@ -432,7 +432,7 @@ export default function SeanceJour() {
                         </p>
                         {!isCardio && poidsCorps && (
                           <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--orange)' }}>
-                            ~{kcalExo(exo, exo.series)} kcal
+                            ~{Math.round(kcalExo(exo, exo.series))} kcal
                           </p>
                         )}
                       </div>
