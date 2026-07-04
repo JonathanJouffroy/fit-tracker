@@ -98,6 +98,8 @@ export default function Dashboard() {
       const logsParExo = {}
       const logsParNom = {}
       logsData?.forEach(l => {
+        // Les logs circuit ont exercice_nom formaté "Circuit X — Exo Y" — on les ignore pour le comptage
+        if (l.exercice_nom?.includes(' — ')) return
         if (l.exercice_id) {
           const key = String(l.exercice_id)
           logsParExo[key] = (logsParExo[key] || 0) + 1
@@ -147,6 +149,8 @@ export default function Dashboard() {
         // Calories muscu — série par série (même méthode que l'historique)
         if (poids) {
           logsData.forEach(l => {
+            // Ignorer les logs circuit
+            if (l.exercice_nom?.includes(' — ')) return
             const exo = exosJour.find(e => String(e.id) === String(l.exercice_id))
             if (!exo || exo.type_exercice === 'cardio') return
             kcalBruleesTotal += calcMuscu({
