@@ -6,7 +6,7 @@ import Header from '@/app/components/Header'
 import { SkeletonListe } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
 import CartePartage from '@/app/components/CartePartage'
-import { calculerCaloriesCardio, zonesPourSeance } from '@/lib/calculs'
+import { calculerCaloriesCardio, calculerCaloriesExercice, zonesPourSeance } from '@/lib/calculs'
 
 function formatDuree(secondes) {
   if (!secondes) return null
@@ -115,11 +115,20 @@ export default function Historique() {
         const exercices = Object.values(exosMap)
         const nbSeries = exercices.reduce((a, e) => a + e.series.length, 0)
 
-        // Calcul kcal total — cardio depuis exo.kcal, muscu recalculé
-        const kcalTotal = exercices.reduce((total, exo) => {
-          if (exo.type_exercice === 'cardio') return total + (exo.kcal || 0)
-          return total // muscu non comptabilisé ici (pas de poids corps disponible facilement)
-        }, 0)
+        // Calcul kcal total — cardio (stocké) + muscu (recalculé)
+        let kcalTotal = 0
+        exercices.forEach((exo) => {
+          if (exo.type_exercice === 'cardio') {
+            kcalTotal += exo.kcal || 0
+          } else if (poidsCorps && exo.series.length > 0) {
+            kcalTotal += calculerCaloriesExercice({
+              series: exo.series.length,
+              repetitions: exoParId[exo.id]?.repetitions || exo.series[0]?.reps || 10,
+              poidsCharge: exoParId[exo.id]?.poids_charge_kg || 0,
+              poidsCorps,
+            })
+          }
+        })
 
         // Poids max par exercice muscu
         exercices.forEach((exo) => {
