@@ -317,14 +317,14 @@ export default function SeanceJour() {
   const exosCardio = exercices.filter(e => e.type_exercice === 'cardio')
   const kcalPrevu = Math.round(exosMuscu.reduce((a, e) => a + kcalExo(e, e.series), 0))
 
-  // Calculer série par série depuis les logs — uniquement les logs muscu
-  const kcalMuscuFait = logsJourMemo.reduce((total, l) => {
-    const exo = exosMuscu.find(e => String(e.id) === String(l.exercice_id))
-    if (!exo) return total  // skip cardio et exercices inconnus
-    if (!l.repetitions_faites) return total  // skip logs sans reps (cardio)
+  // Calcul en temps réel pendant la séance : seriesFaites × repsReelles
+  const kcalMuscuFait = exosMuscu.reduce((total, exo) => {
+    const nbFaites = seriesFaites[exo.id] || 0
+    if (nbFaites === 0) return total
+    const reps = Number(repsReelles[exo.id]) || exo.repetitions
     return total + calculerCaloriesExercice({
-      series: 1,
-      repetitions: l.repetitions_faites,
+      series: nbFaites,
+      repetitions: reps,
       poidsCharge: exo.poids_charge_kg || 0,
       poidsCorps,
     })
