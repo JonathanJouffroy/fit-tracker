@@ -688,12 +688,16 @@ export default function SeanceJour() {
                 <div className="flex-1">
                   <label className="label">Tours</label>
                   <input type="number" min="1" max="10" value={toursCircuit}
-                    onChange={e => setToursCircuit(Number(e.target.value))} className="input" />
+                    onChange={e => setToursCircuit(e.target.value)}
+                    onBlur={e => setToursCircuit(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    className="input" />
                 </div>
                 <div className="flex-1">
                   <label className="label">Repos/tours (s)</label>
                   <input type="number" min="0" step="5" value={reposEntreTours}
-                    onChange={e => setReposEntreTours(Number(e.target.value))} className="input" />
+                    onChange={e => setReposEntreTours(e.target.value)}
+                    onBlur={e => setReposEntreTours(Math.max(0, Number(e.target.value) || 0))}
+                    className="input" />
                 </div>
               </div>
 
@@ -712,7 +716,8 @@ export default function SeanceJour() {
                     </button>
                   ))}
                   <input type="number" min="0" max="120" value={reposEntreExos}
-                    onChange={e => setReposEntreExos(Number(e.target.value))}
+                    onChange={e => setReposEntreExos(e.target.value)}
+                    onBlur={e => setReposEntreExos(Math.max(0, Number(e.target.value) || 0))}
                     className="input w-20 text-sm" />
                 </div>
               </div>
