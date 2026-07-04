@@ -244,6 +244,8 @@ export default function SeanceJour() {
   function supprimerExoCircuit(id) {
     setExosCircuitForm(prev => prev.filter(ex => ex.id !== id))
   }
+
+  async function ajouterExercice(e) {
     e.preventDefault()
     if (!nom.trim() || !userId) return
     const { error } = await supabase.from('exercices').insert([{
