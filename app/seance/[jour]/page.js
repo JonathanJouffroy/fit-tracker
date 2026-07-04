@@ -625,7 +625,9 @@ export default function SeanceJour() {
           )}
         </div>
       )}
-    {/* Mode circuit */}
+    </div>
+
+    {/* Mode circuit — en dehors du Drawer, plein écran */}
     {circuitActif && (
       <CircuitMode
         exercices={exercices}
