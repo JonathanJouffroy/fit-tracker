@@ -36,8 +36,10 @@ export default function SeanceJour() {
   const [cardioEnCours, setCardioEnCours] = useState(null)
   const [drawerExo, setDrawerExo] = useState(null)
   const [kcalCardioTotal, setKcalCardioTotal] = useState(0)
+  const [kcalCircuitTotal, setKcalCircuitTotal] = useState(0)
   const [logsJourMemo, setLogsJourMemo] = useState([])
-  const [circuitActif, setCircuitActif] = useState(false)
+  const [circuitEnCours, setCircuitEnCours] = useState(null)
+  const [circuits, setCircuits] = useState([])
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -48,6 +50,19 @@ export default function SeanceJour() {
   const [repos, setRepos] = useState(60)
   const [poidsCharge, setPoidsCharge] = useState('')
   const [activiteCardio, setActiviteCardio] = useState('natation')
+
+  // Formulaire circuit
+  const [nomCircuit, setNomCircuit] = useState('')
+  const [toursCircuit, setToursCircuit] = useState(3)
+  const [reposEntreExos, setReposEntreExos] = useState(15)
+  const [reposEntreTours, setReposEntreTours] = useState(60)
+  const [exosCircuitForm, setExosCircuitForm] = useState([
+    { id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }
+  ])
+
+  // Circuit en cours de guidage
+  const [circuitEnCours, setCircuitEnCours] = useState(null) // { circuit, exos }
+  const [circuits, setCircuits] = useState([])
 
   // Formulaire édition
   const [exoEnEdition, setExoEnEdition] = useState(null)
@@ -105,6 +120,13 @@ export default function SeanceJour() {
       setJour(jourData)
       setExercices(exosData || [])
       setPoidsCorps(mesures?.[0]?.poids_kg || null)
+
+      // Charger les circuits du jour
+      const { data: circuitsData } = await supabase
+        .from('circuits').select('*, circuit_exercices(*)')
+        .eq('user_id', user.id).eq('jour_id', jourId)
+        .order('created_at')
+      setCircuits(circuitsData || [])
 
       // Charger les logs du jour pour initialiser seriesFaites et kcalCardioTotal
       const { data: logsJour } = await supabase.from('seances_log')
@@ -169,7 +191,59 @@ export default function SeanceJour() {
     return `/progression/exercice/${ids[0]}?ids=${ids.join(',')}`
   }
 
-  async function ajouterExercice(e) {
+  async function ajouterCircuit(e) {
+    e.preventDefault()
+    const exosValides = exosCircuitForm.filter(ex => ex.nom.trim())
+    if (!nomCircuit.trim() || exosValides.length < 2) return
+
+    const { data: circuit, error } = await supabase.from('circuits').insert([{
+      user_id: userId,
+      jour_id: Number(jourId),
+      nom: nomCircuit.trim(),
+      tours: toursCircuit,
+      repos_entre_exos: reposEntreExos,
+      repos_entre_tours: reposEntreTours,
+    }]).select().single()
+
+    if (error) { toast('Erreur lors de la création du circuit', 'error'); return }
+
+    const exosInsert = exosValides.map((ex, i) => ({
+      circuit_id: circuit.id,
+      nom: ex.nom.trim(),
+      repetitions: ex.repetitions ? Number(ex.repetitions) : null,
+      duree_secondes: ex.duree_secondes ? Number(ex.duree_secondes) : null,
+      ordre: i,
+    }))
+    await supabase.from('circuit_exercices').insert(exosInsert)
+
+    toast(`Circuit "${nomCircuit}" créé ✓`)
+    setShowForm(false)
+    setNomCircuit('')
+    setToursCircuit(3)
+    setReposEntreExos(15)
+    setReposEntreTours(60)
+    setExosCircuitForm([{ id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }])
+    chargerTout()
+  }
+
+  async function supprimerCircuit(circuitId, circuitNom) {
+    if (!confirm(`Supprimer le circuit "${circuitNom}" ?`)) return
+    await supabase.from('circuits').delete().eq('id', circuitId)
+    setCircuits(prev => prev.filter(c => c.id !== circuitId))
+    toast(`Circuit supprimé`)
+  }
+
+  function ajouterExoCircuit() {
+    setExosCircuitForm(prev => [...prev, { id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }])
+  }
+
+  function modifierExoCircuit(id, champ, valeur) {
+    setExosCircuitForm(prev => prev.map(ex => ex.id === id ? { ...ex, [champ]: valeur } : ex))
+  }
+
+  function supprimerExoCircuit(id) {
+    setExosCircuitForm(prev => prev.filter(ex => ex.id !== id))
+  }
     e.preventDefault()
     if (!nom.trim() || !userId) return
     const { error } = await supabase.from('exercices').insert([{
@@ -331,21 +405,12 @@ export default function SeanceJour() {
       poidsCorps,
     })
   }, 0)
-  const kcalTotalFait = Math.round(kcalMuscuFait + kcalCardioTotal)
+  const kcalTotalFait = Math.round(kcalMuscuFait + kcalCardioTotal + kcalCircuitTotal)
   return (
     <>
     <div>
       <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
-        {exercices.filter(e => e.type_exercice !== 'cardio').length >= 2 && (
-          <button onClick={() => setCircuitActif(true)}
-            className="text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1"
-            style={{ background: 'var(--surface-2)', color: 'var(--orange)', border: '1px solid var(--orange)' }}>
-            ⚡ Circuit
-          </button>
-        )}
-      </div>
+      <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
 
       <TimerSeance jourId={jourId} />
 
@@ -355,7 +420,7 @@ export default function SeanceJour() {
         </p>
       )}
 
-      {poidsCorps && (exosMuscu.length > 0 || exosCardio.length > 0) && (
+      {poidsCorps && (exosMuscu.length > 0 || exosCardio.length > 0 || circuits.length > 0) && (
         <div className="card flex items-center justify-between mb-6 py-3">
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Calories brûlées</p>
@@ -363,6 +428,8 @@ export default function SeanceJour() {
               {kcalMuscuFait > 0 && `Muscu: ${Math.round(kcalMuscuFait)} kcal`}
               {kcalMuscuFait > 0 && kcalCardioTotal > 0 && ' · '}
               {kcalCardioTotal > 0 && `Cardio: ${kcalCardioTotal} kcal`}
+              {kcalCircuitTotal > 0 && (kcalMuscuFait > 0 || kcalCardioTotal > 0) && ' · '}
+              {kcalCircuitTotal > 0 && `Circuit: ${kcalCircuitTotal} kcal`}
             </p>
           </div>
           <div className="text-right">
@@ -521,20 +588,59 @@ export default function SeanceJour() {
           )
         })}
 
-        {exercices.length === 0 && (
+        {exercices.length === 0 && circuits.length === 0 && (
           <p className="text-center py-8" style={{ color: 'var(--text-faint)' }}>
             Aucun exercice ce jour. Jour de repos ou ajoute-en un ci-dessous.
           </p>
         )}
+
+        {/* Circuits */}
+        {circuits.map(circuit => {
+          const exosTriés = [...(circuit.circuit_exercices || [])].sort((a, b) => a.ordre - b.ordre)
+          return (
+            <div key={circuit.id} className="card" style={{ borderLeft: '3px solid var(--orange)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-semibold" style={{ color: 'var(--text)' }}>⚡ {circuit.nom}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {circuit.tours} tours · {exosTriés.length} exercices ·{' '}
+                    {circuit.repos_entre_exos === 0 ? 'enchaîné' : `${circuit.repos_entre_exos}s entre exos`}
+                  </p>
+                </div>
+                <button onClick={() => supprimerCircuit(circuit.id, circuit.nom)}
+                  className="text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
+              </div>
+              <div className="flex flex-col gap-1 mb-3">
+                {exosTriés.map((ex, i) => (
+                  <div key={ex.id} className="flex items-center gap-2 text-sm">
+                    <span className="w-4 text-xs text-center" style={{ color: 'var(--orange)' }}>{i + 1}</span>
+                    <span style={{ color: 'var(--text)' }}>{ex.nom}</span>
+                    <span style={{ color: 'var(--text-faint)' }}>
+                      {ex.repetitions ? `${ex.repetitions} reps` : ''}
+                      {ex.repetitions && ex.duree_secondes ? ' · ' : ''}
+                      {ex.duree_secondes ? `${ex.duree_secondes}s` : ''}
+                      {!ex.repetitions && !ex.duree_secondes ? '—' : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setCircuitEnCours({ circuit, exos: exosTriés })}
+                className="w-full btn-primary py-2 text-sm font-semibold">
+                ▶ Démarrer le circuit
+              </button>
+            </div>
+          )
+        })}
       </div>
 
       {!showForm && !exoEnEdition ? (
         <button onClick={() => setShowForm(true)} className="btn-primary w-full mt-6">+ Ajouter un exercice</button>
       ) : showForm && (
-        <form onSubmit={ajouterExercice} className="card mt-6 flex flex-col gap-3">
-          {/* Toggle Muscu / Cardio */}
+        <form onSubmit={typeForm === 'circuit' ? ajouterCircuit : ajouterExercice} className="card mt-6 flex flex-col gap-3">
+          {/* Toggle Muscu / Cardio / Circuit */}
           <div className="flex gap-2">
-            {[['muscu', '🏋️ Musculation'], ['cardio', '🏃 Cardio']].map(([t, label]) => (
+            {[['muscu', '🏋️ Muscu'], ['cardio', '🏃 Cardio'], ['circuit', '⚡ Circuit']].map(([t, label]) => (
               <button key={t} type="button" onClick={() => setTypeForm(t)}
                 className="flex-1 py-2 rounded-xl text-sm font-semibold"
                 style={{
@@ -546,11 +652,13 @@ export default function SeanceJour() {
             ))}
           </div>
 
-          <div>
-            <label className="label">Nom</label>
-            <AutocompleteInput value={nom} onChange={setNom} suggestions={nomsExistants}
-              placeholder={typeForm === 'cardio' ? 'Ex: Sortie natation matinale' : 'Ex: Squat, Développé couché...'} />
-          </div>
+          {typeForm !== 'circuit' && (
+            <div>
+              <label className="label">Nom</label>
+              <AutocompleteInput value={nom} onChange={setNom} suggestions={nomsExistants}
+                placeholder={typeForm === 'cardio' ? 'Ex: Sortie natation matinale' : 'Ex: Squat, Développé couché...'} />
+            </div>
+          )}
 
           {typeForm === 'cardio' ? (
             <div>
@@ -568,6 +676,95 @@ export default function SeanceJour() {
                 ))}
               </div>
             </div>
+          ) : typeForm === 'circuit' ? (
+            <>
+              {/* Nom du circuit */}
+              <div>
+                <label className="label">Nom du circuit</label>
+                <input type="text" value={nomCircuit} onChange={e => setNomCircuit(e.target.value)}
+                  className="input" placeholder="Ex: Circuit abdos, Cardio tabata..." required />
+              </div>
+
+              {/* Config globale */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="label">Tours</label>
+                  <input type="number" min="1" max="10" value={toursCircuit}
+                    onChange={e => setToursCircuit(Number(e.target.value))} className="input" />
+                </div>
+                <div className="flex-1">
+                  <label className="label">Repos/tours (s)</label>
+                  <input type="number" min="0" step="5" value={reposEntreTours}
+                    onChange={e => setReposEntreTours(Number(e.target.value))} className="input" />
+                </div>
+              </div>
+
+              {/* Repos entre exercices */}
+              <div>
+                <label className="label">Repos entre exercices (s) — 0 = enchaîner</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[0, 10, 15, 20, 30].map(s => (
+                    <button key={s} type="button" onClick={() => setReposEntreExos(s)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium"
+                      style={{
+                        background: reposEntreExos === s ? 'var(--orange)' : 'var(--surface-2)',
+                        color: reposEntreExos === s ? 'white' : 'var(--text-muted)',
+                      }}>
+                      {s === 0 ? '⚡ 0s' : `${s}s`}
+                    </button>
+                  ))}
+                  <input type="number" min="0" max="120" value={reposEntreExos}
+                    onChange={e => setReposEntreExos(Number(e.target.value))}
+                    className="input w-20 text-sm" />
+                </div>
+              </div>
+
+              {/* Exercices du circuit */}
+              <div>
+                <label className="label">Exercices du circuit</label>
+                <div className="flex flex-col gap-2">
+                  {exosCircuitForm.map((ex, i) => (
+                    <div key={ex.id} className="rounded-xl p-3 flex flex-col gap-2"
+                      style={{ background: 'var(--surface-2)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold w-5 text-center"
+                          style={{ color: 'var(--orange)' }}>{i + 1}</span>
+                        <input type="text" value={ex.nom}
+                          onChange={e => modifierExoCircuit(ex.id, 'nom', e.target.value)}
+                          className="input flex-1 text-sm" placeholder="Nom de l'exercice" />
+                        {exosCircuitForm.length > 2 && (
+                          <button type="button" onClick={() => supprimerExoCircuit(ex.id)}
+                            className="text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>
+                            Reps (optionnel)
+                          </label>
+                          <input type="number" min="1" value={ex.repetitions}
+                            onChange={e => modifierExoCircuit(ex.id, 'repetitions', e.target.value)}
+                            className="input text-sm" placeholder="—" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>
+                            Durée en s (optionnel)
+                          </label>
+                          <input type="number" min="5" step="5" value={ex.duree_secondes}
+                            onChange={e => modifierExoCircuit(ex.id, 'duree_secondes', e.target.value)}
+                            className="input text-sm" placeholder="—" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={ajouterExoCircuit}
+                    className="text-sm py-2 rounded-xl"
+                    style={{ background: 'var(--surface-2)', color: 'var(--orange)' }}>
+                    + Ajouter un exercice au circuit
+                  </button>
+                </div>
+              </div>
+            </>
           ) : (
             <>
               <div className="flex gap-2">
@@ -628,12 +825,17 @@ export default function SeanceJour() {
     </Drawer>
 
     {/* Mode circuit — plein écran, après le Drawer */}
-    {circuitActif && (
+    {circuitEnCours && (
       <CircuitMode
-        exercices={exercices}
+        circuit={circuitEnCours.circuit}
+        exosCircuit={circuitEnCours.exos}
         userId={userId}
         poidsCorps={poidsCorps}
-        onTerminer={() => { setCircuitActif(false); chargerTout() }}
+        onTerminer={(kcalCircuit) => {
+          setCircuitEnCours(null)
+          if (kcalCircuit > 0) setKcalCircuitTotal(prev => prev + kcalCircuit)
+          chargerTout()
+        }}
       />
     )}
     </>
