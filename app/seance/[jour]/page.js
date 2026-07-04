@@ -33,7 +33,8 @@ export default function SeanceJour() {
   const [nomsExistants, setNomsExistants] = useState([])
   const [idsByNom, setIdsByNom] = useState({})
   const [cardioEnCours, setCardioEnCours] = useState(null)
-  const [drawerExo, setDrawerExo] = useState(null) // exercice dont on affiche le drawer
+  const [drawerExo, setDrawerExo] = useState(null)
+  const [kcalCardioTotal, setKcalCardioTotal] = useState(0) // cumul calories cardio de la séance
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -216,7 +217,6 @@ export default function SeanceJour() {
   }
 
   async function terminerCardio(exo, metriques) {
-    // Calculer les calories cardio à partir des métriques
     const kcalCardio = poidsCorps ? calculerCaloriesCardio({
       activiteId: exo.activite_cardio,
       dureeMinutes: metriques.duree_minutes || 0,
@@ -234,6 +234,7 @@ export default function SeanceJour() {
       kcal: kcalCardio || null,
     }])
     setSeriesFaites((s) => ({ ...s, [exo.id]: 1 }))
+    setKcalCardioTotal((prev) => prev + (kcalCardio || 0))
     setCardioEnCours(null)
     toast(`${exo.nom} enregistré 💪`)
   }
@@ -260,18 +261,11 @@ export default function SeanceJour() {
     return calculerCaloriesExercice({ series: nbSeries, repetitions: exo.repetitions, poidsCharge: exo.poids_charge_kg, poidsCorps })
   }
 
-  function kcalCardioFait(exo) {
-    if (exo.type_exercice !== 'cardio') return 0
-    if (!seriesFaites[exo.id]) return 0  // pas encore enregistré
-    // On ne peut pas recalculer sans les métriques — on affiche 0 ici
-    // Les calories réelles sont stockées dans seances_log.kcal
-    return 0
-  }
-
   const exosMuscu = exercices.filter(e => e.type_exercice !== 'cardio')
   const exosCardio = exercices.filter(e => e.type_exercice === 'cardio')
   const kcalPrevu = exosMuscu.reduce((a, e) => a + kcalExo(e, e.series), 0)
-  const kcalFait = exosMuscu.reduce((a, e) => a + kcalExo(e, seriesFaites[e.id] || 0), 0)
+  const kcalMuscuFait = exosMuscu.reduce((a, e) => a + kcalExo(e, seriesFaites[e.id] || 0), 0)
+  const kcalTotalFait = kcalMuscuFait + kcalCardioTotal
 
   return (
     <>
@@ -287,15 +281,19 @@ export default function SeanceJour() {
         </p>
       )}
 
-      {poidsCorps && exosMuscu.length > 0 && (
+      {poidsCorps && (exosMuscu.length > 0 || exosCardio.length > 0) && (
         <div className="card flex items-center justify-between mb-6 py-3">
           <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Calories muscu</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Estimation (méthode MET)</p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Calories brûlées</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {kcalMuscuFait > 0 && `Muscu: ${kcalMuscuFait} kcal`}
+              {kcalMuscuFait > 0 && kcalCardioTotal > 0 && ' · '}
+              {kcalCardioTotal > 0 && `Cardio: ${kcalCardioTotal} kcal`}
+            </p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold" style={{ color: 'var(--orange)' }}>{kcalFait}</p>
-            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>/ {kcalPrevu} kcal prévues</p>
+            <p className="text-2xl font-bold" style={{ color: 'var(--orange)' }}>{kcalTotalFait}</p>
+            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>/ {kcalPrevu} kcal prévues (muscu)</p>
           </div>
         </div>
       )}
