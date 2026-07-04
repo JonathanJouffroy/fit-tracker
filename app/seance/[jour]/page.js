@@ -101,13 +101,14 @@ export default function SeanceJour() {
       setUserId(user.id)
 
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
-      const [[{ data: jourData }, { data: exosData }, { data: mesures }, { data: tousExos }]] = await Promise.all([
+      const [[{ data: jourData }, { data: exosData }, { data: mesures }, { data: tousExos }, { data: circuitsData }]] = await Promise.all([
         Promise.race([
           Promise.all([
             supabase.from('jours').select('*').eq('id', jourId).single(),
             supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
             supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
             supabase.from('exercices').select('id, nom').eq('user_id', user.id),
+            supabase.from('circuits').select('*, circuit_exercices(*)').eq('user_id', user.id).eq('jour_id', jourId).order('created_at'),
           ]),
           timeout,
         ]),
@@ -116,12 +117,6 @@ export default function SeanceJour() {
       setJour(jourData)
       setExercices(exosData || [])
       setPoidsCorps(mesures?.[0]?.poids_kg || null)
-
-      // Charger les circuits du jour
-      const { data: circuitsData } = await supabase
-        .from('circuits').select('*, circuit_exercices(*)')
-        .eq('user_id', user.id).eq('jour_id', jourId)
-        .order('created_at')
       setCircuits(circuitsData || [])
 
       // Charger les logs du jour pour initialiser seriesFaites et kcalCardioTotal
@@ -184,7 +179,7 @@ export default function SeanceJour() {
 
   function lienProgression(exo) {
     const ids = idsByNom[exo.nom] || [exo.id]
-    return `/progression/exercice/${ids[0]}?ids=${ids.join(',')}`
+    return `/progression/exercice/${ids[0]}?nom=${encodeURIComponent(exo.nom)}`
   }
 
   async function ajouterCircuit(e) {
