@@ -43,6 +43,7 @@ export default function Profil() {
   const [profilId, setProfilId] = useState(null)
   const [caloriesConsommees, setCaloriesConsommees] = useState(0)
   const [caloriesBrulees, setCaloriesBrulees] = useState(0)
+  const [kcalPas, setKcalPas] = useState(0)
   const [calories7jours, setCalories7jours] = useState([]) // [{date, consomme, brule}]
   const [caloriesMois, setCaloriesMois] = useState([])    // [{date, consomme, brule}]
   const [loading, setLoading] = useState(true)
@@ -139,6 +140,17 @@ export default function Profil() {
       .select('exercice_id, kcal, duree_minutes, denivele_m, repetitions_faites')
       .eq('user_id', user.id).eq('date_seance', today)
     setCaloriesBrulees(calcBrule(logsJour, poidsCorps))
+
+    // Charger les pas Google Fit pour les ajouter aux calories brûlées
+    try {
+      const res = await fetch('/api/fitness/steps')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.connected && data.pas && poidsCorps) {
+          setKcalPas(Math.round(poidsCorps * 0.0005 * data.pas))
+        }
+      }
+    } catch {}
 
     // ---- Historique 7 derniers jours ----
     const dates7 = Array.from({ length: 7 }, (_, i) => {
@@ -260,7 +272,16 @@ export default function Profil() {
                 <span>BMR : {resultatCalories.bmr} kcal</span>
                 <span>· TDEE : {resultatCalories.tdee} kcal</span>
                 <span>· Objectif : {resultatCalories.caloriesCible} kcal</span>
-                {caloriesBrulees > 0 && <span className="text-green-600 font-medium">· 🔥 {caloriesBrulees} kcal brûlées</span>}
+                {(caloriesBrulees > 0 || kcalPas > 0) && (
+                  <span className="text-green-600 font-medium">
+                    · 🔥 {caloriesBrulees + kcalPas} kcal brûlées
+                    {caloriesBrulees > 0 && kcalPas > 0 && (
+                      <span className="font-normal text-xs ml-1" style={{ color: 'var(--text-faint)' }}>
+                        (séance + pas)
+                      </span>
+                    )}
+                  </span>
+                )}
               </div>
             </div>
           )}
