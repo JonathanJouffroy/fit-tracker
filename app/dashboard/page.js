@@ -79,7 +79,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase.from('jours').select('*').eq('numero', numeroJour).single(),
         supabase.from('exercices').select('*').eq('user_id', user.id),
-        supabase.from('seances_log').select('exercice_id, exercice_nom, serie_numero, kcal, duree_minutes').eq('user_id', user.id).eq('date_seance', today),
+        supabase.from('seances_log').select('exercice_id, exercice_nom, serie_numero, repetitions_faites, kcal, duree_minutes').eq('user_id', user.id).eq('date_seance', today),
         supabase.from('seances_duree').select('duree_secondes').eq('user_id', user.id).eq('date_seance', today).order('created_at', { ascending: false }).limit(1),
         supabase.from('repas').select('*, options_repas(kcal)').eq('user_id', user.id).eq('date_repas', today),
         supabase.from('profil').select('*').eq('user_id', user.id).single(),
@@ -144,21 +144,15 @@ export default function Dashboard() {
           }
         })
 
-        // Calories muscu — grouper les logs par exercice et calculer
+        // Calories muscu — série par série (même méthode que l'historique)
         if (poids) {
-          const parExo = {}
           logsData.forEach(l => {
             const exo = exosJour.find(e => String(e.id) === String(l.exercice_id))
             if (!exo || exo.type_exercice === 'cardio') return
-            const key = String(l.exercice_id)
-            if (!parExo[key]) parExo[key] = { count: 0, exo }
-            parExo[key].count++
-          })
-          Object.values(parExo).forEach(({ count, exo }) => {
             kcalBruleesTotal += calcMuscu({
-              series: count,
-              repetitions: exo.repetitions,
-              poidsCharge: exo.poids_charge_kg,
+              series: 1,
+              repetitions: l.repetitions_faites || exo.repetitions || 10,
+              poidsCharge: exo.poids_charge_kg || 0,
               poidsCorps: poids,
             })
           })
