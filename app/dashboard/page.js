@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [cardioFait, setCardioFait] = useState(0)
   const [cardioTotal, setCardioTotal] = useState(0)
   const [dureeSeance, setDureeSeance] = useState(null)
+  const [kcalBrulees, setKcalBrulees] = useState(0)
 
   const [repas, setRepas] = useState([])
   const [caloriesCible, setCaloriesCible] = useState(null)
@@ -75,7 +76,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase.from('jours').select('*').eq('numero', numeroJour).single(),
         supabase.from('exercices').select('*').eq('user_id', user.id),
-        supabase.from('seances_log').select('exercice_id, serie_numero').eq('user_id', user.id).eq('date_seance', today),
+        supabase.from('seances_log').select('exercice_id, serie_numero, kcal').eq('user_id', user.id).eq('date_seance', today),
         supabase.from('seances_duree').select('duree_secondes').eq('user_id', user.id).eq('date_seance', today).order('created_at', { ascending: false }).limit(1),
         supabase.from('repas').select('*, options_repas(kcal)').eq('user_id', user.id).eq('date_repas', today),
         supabase.from('profil').select('*').eq('user_id', user.id).single(),
@@ -103,6 +104,10 @@ export default function Dashboard() {
 
       setCardioTotal(exosCardio.length)
       setCardioFait(exosCardio.filter(e => (logsParExo[e.id] || 0) >= 1).length)
+
+      // Calories cardio depuis les logs (colonne kcal stockée à la validation)
+      const kcalCardioLogs = (logsData || []).reduce((a, l) => a + (l.kcal || 0), 0)
+      setKcalBrulees(kcalCardioLogs)
 
       setDureeSeance(dureesData?.[0]?.duree_secondes || null)
 
@@ -203,6 +208,7 @@ export default function Dashboard() {
                     {seriesTotal > 0 && `${seriesFaites}/${seriesTotal} séries`}
                     {seriesTotal > 0 && cardioTotal > 0 && ' · '}
                     {cardioTotal > 0 && `${cardioFait}/${cardioTotal} cardio`}
+                    {kcalBrulees > 0 && ` · 🔥 ${kcalBrulees} kcal`}
                   </p>
                 )}
                 {dureeSeance && (
