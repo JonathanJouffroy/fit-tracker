@@ -115,22 +115,21 @@ export default function Historique() {
         const exercices = Object.values(exosMap)
         const nbSeries = exercices.reduce((a, e) => a + e.series.length, 0)
 
-        // Calcul kcal total — même méthode que la page séance
-        // Cardio : kcal stocké en base
-        // Muscu : calculerCaloriesExercice avec répétitions réelles moyennes
+        // Calcul kcal total — série par série pour éviter les erreurs d'arrondi
         let kcalTotal = 0
         exercices.forEach((exo) => {
           if (exo.type_exercice === 'cardio') {
             kcalTotal += exo.kcal || 0
           } else if (poidsCorps && exo.series.length > 0) {
             const exoRef = exoParId[exo.id]
-            // Moyenne des répétitions réellement effectuées
-            const repsReelles = exo.series.reduce((a, s) => a + (s.reps || 0), 0) / exo.series.length
-            kcalTotal += calculerCaloriesExercice({
-              series: exo.series.length,
-              repetitions: Math.round(repsReelles) || exoRef?.repetitions || 10,
-              poidsCharge: exoRef?.poids_charge_kg || 0,
-              poidsCorps,
+            // Calculer série par série avec les vraies reps
+            exo.series.forEach((s) => {
+              kcalTotal += calculerCaloriesExercice({
+                series: 1,
+                repetitions: s.reps || exoRef?.repetitions || 10,
+                poidsCharge: exoRef?.poids_charge_kg || 0,
+                poidsCorps,
+              })
             })
           }
         })
@@ -150,7 +149,7 @@ export default function Historique() {
           date,
           exercices,
           nbSeries,
-          kcalTotal,
+          kcalTotal: Math.round(kcalTotal),
           zonesActives,
           duree: dureeParDate[date]?.duree || null,
           note: dureeParDate[date]?.note || null,
