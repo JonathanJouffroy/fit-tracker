@@ -249,7 +249,7 @@ export default function Dashboard() {
       )}
 
       {/* Pas du jour via Google Fit */}
-      <GoogleFitSteps />
+      <GoogleFitSteps poidsCorps={dernierPoids} />
 
       {/* Carte séance du jour */}
       <Link href={jourSemaine ? `/seance/${jourSemaine.id}` : '/'}>
