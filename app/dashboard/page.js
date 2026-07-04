@@ -89,18 +89,20 @@ export default function Dashboard() {
 
       const exosMuscu = exosJour.filter(e => e.type_exercice !== 'cardio')
       const exosCardio = exosJour.filter(e => e.type_exercice === 'cardio')
-      setSeriesTotal(exosMuscu.reduce((a, e) => a + e.series, 0))
+      setSeriesTotal(exosMuscu.reduce((a, e) => a + (e.series || 0), 0))
 
       const logsParExo = {}
       logsData?.forEach(l => {
+        if (!l.exercice_id) return
         if (!logsParExo[l.exercice_id]) logsParExo[l.exercice_id] = 0
         logsParExo[l.exercice_id]++
       })
-      const seriesFaitesCount = exosMuscu.reduce((a, e) => a + Math.min(logsParExo[e.id] || 0, e.series), 0)
+
+      const seriesFaitesCount = exosMuscu.reduce((a, e) => a + Math.min(logsParExo[e.id] || 0, e.series || 0), 0)
       setSeriesFaites(seriesFaitesCount)
 
       setCardioTotal(exosCardio.length)
-      setCardioFait(exosCardio.filter(e => logsParExo[e.id] > 0).length)
+      setCardioFait(exosCardio.filter(e => (logsParExo[e.id] || 0) >= 1).length)
 
       setDureeSeance(dureesData?.[0]?.duree_secondes || null)
 
