@@ -2,13 +2,14 @@
 import { useState, useEffect } from 'react'
 
 const OBJECTIF_PAS = 8000
-// Formule standard : ~0.04 kcal par pas par 10kg de poids corporel
+// Formule : poids(kg) × 0.0005 × nombre de pas
+// Pour 6000 pas à 80kg → ~240 kcal
 function calculerKcalPas(pas, poidsKg) {
   if (!pas || !poidsKg) return 0
-  return Math.round(pas * 0.04 * (poidsKg / 10))
+  return Math.round(poidsKg * 0.0005 * pas)
 }
 
-export default function GoogleFitSteps({ poidsCorps }) {
+export default function GoogleFitSteps({ poidsCorps, onKcalCalculees }) {
   const [statut, setStatut] = useState('loading')
   const [pas, setPas] = useState(null)
   const [needsReauth, setNeedsReauth] = useState(false)
@@ -28,6 +29,10 @@ export default function GoogleFitSteps({ poidsCorps }) {
       }
       setPas(data.pas)
       setStatut('connected')
+      // Remonter les kcal au parent si callback fourni
+      if (onKcalCalculees && data.pas && poidsCorps) {
+        onKcalCalculees(calculerKcalPas(data.pas, poidsCorps))
+      }
     } catch {
       setStatut('error')
     }
