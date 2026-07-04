@@ -34,7 +34,8 @@ export default function SeanceJour() {
   const [idsByNom, setIdsByNom] = useState({})
   const [cardioEnCours, setCardioEnCours] = useState(null)
   const [drawerExo, setDrawerExo] = useState(null)
-  const [kcalCardioTotal, setKcalCardioTotal] = useState(0) // cumul calories cardio de la séance
+  const [kcalCardioTotal, setKcalCardioTotal] = useState(0)
+  const [logsJourMemo, setLogsJourMemo] = useState([])
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -119,6 +120,7 @@ export default function SeanceJour() {
         })
         setSeriesFaites(sf)
         setKcalCardioTotal(kcalCardio)
+        setLogsJourMemo(logsJour)
       }
 
       const map = {}
@@ -228,6 +230,10 @@ export default function SeanceJour() {
       user_id: userId, exercice_id: exercice.id, exercice_nom: exercice.nom,
       serie_numero: fait, repetitions_faites: repsEffectives, poids_kg: poidsSerie,
     }])
+    setLogsJourMemo(prev => [...prev, {
+      exercice_id: exercice.id,
+      repetitions_faites: repsEffectives,
+    }])
     if (fait < exercice.series) {
       setExoActifTimer({ exerciceId: exercice.id, duree: exercice.repos_secondes })
     } else {
@@ -301,16 +307,28 @@ export default function SeanceJour() {
 
   function kcalExo(exo, nbSeries) {
     if (exo.type_exercice === 'cardio') return 0
+    if (nbSeries === 0) return 0
     const reps = Number(repsReelles[exo.id]) || exo.repetitions
+    // Calculer série par série (même méthode que l'historique)
     return calculerCaloriesExercice({ series: nbSeries, repetitions: reps, poidsCharge: exo.poids_charge_kg, poidsCorps })
   }
 
   const exosMuscu = exercices.filter(e => e.type_exercice !== 'cardio')
   const exosCardio = exercices.filter(e => e.type_exercice === 'cardio')
-  const kcalPrevu = exosMuscu.reduce((a, e) => a + kcalExo(e, e.series), 0)
-  const kcalMuscuFait = exosMuscu.reduce((a, e) => a + kcalExo(e, seriesFaites[e.id] || 0), 0)
-  const kcalTotalFait = kcalMuscuFait + kcalCardioTotal
+  const kcalPrevu = Math.round(exosMuscu.reduce((a, e) => a + kcalExo(e, e.series), 0))
 
+  // Calculer série par série depuis les logs (même méthode que l'historique)
+  const kcalMuscuFait = logsJourMemo.reduce((total, l) => {
+    const exo = exosMuscu.find(e => String(e.id) === String(l.exercice_id))
+    if (!exo) return total
+    return total + calculerCaloriesExercice({
+      series: 1,
+      repetitions: l.repetitions_faites || exo.repetitions || 10,
+      poidsCharge: exo.poids_charge_kg || 0,
+      poidsCorps,
+    })
+  }, 0)
+  const kcalTotalFait = Math.round(kcalMuscuFait + kcalCardioTotal)
   return (
     <>
     <div>
