@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -8,6 +8,18 @@ import JaugeCalories from '@/app/components/JaugeCalories'
 import GoogleFitSteps from '@/app/components/GoogleFitSteps'
 import { SkeletonCard, SkeletonJauge } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
+
+// Composant séparé pour useSearchParams (doit être dans un Suspense)
+function GoogleFitCallback() {
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const googleFit = searchParams.get('google_fit')
+    if (googleFit) {
+      window.history.replaceState({}, '', '/dashboard')
+    }
+  }, [searchParams])
+  return null
+}
 
 function aujourdHui() { return new Date().toISOString().split('T')[0] }
 
@@ -21,20 +33,6 @@ const TYPES_REPAS = [
 export default function Dashboard() {
   const supabase = createClient()
   const router = useRouter()
-  const searchParams = useSearchParams()
-
-  // Afficher un message selon le retour OAuth Google Fit
-  useEffect(() => {
-    const googleFit = searchParams.get('google_fit')
-    if (googleFit === 'success') {
-      // Nettoyer l'URL sans recharger la page
-      window.history.replaceState({}, '', '/dashboard')
-    } else if (googleFit === 'error') {
-      window.history.replaceState({}, '', '/dashboard')
-    } else if (googleFit === 'denied') {
-      window.history.replaceState({}, '', '/dashboard')
-    }
-  }, [searchParams])
 
   const [loading, setLoading] = useState(true)
   const [erreur, setErreur] = useState(null)
@@ -167,6 +165,11 @@ export default function Dashboard() {
 
   return (
     <div>
+      {/* Nettoyage URL après callback OAuth Google Fit */}
+      <Suspense fallback={null}>
+        <GoogleFitCallback />
+      </Suspense>
+
       <Header title="Aujourd'hui" subtitle={dateAffichee.charAt(0).toUpperCase() + dateAffichee.slice(1)} />
 
       {/* Jauge calories */}
