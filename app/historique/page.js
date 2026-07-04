@@ -56,7 +56,7 @@ export default function Historique() {
 
       // Logs de séances avec métriques cardio
       const { data: logs } = await supabase.from('seances_log')
-        .select('date_seance, exercice_id, exercice_nom, serie_numero, repetitions_faites, poids_kg, duree_minutes, distance_m, denivele_m, nb_sauts, note_cardio')
+        .select('date_seance, exercice_id, exercice_nom, serie_numero, repetitions_faites, poids_kg, duree_minutes, distance_m, denivele_m, nb_sauts, note_cardio, kcal')
         .eq('user_id', user.id)
         .order('date_seance', { ascending: false })
         .order('exercice_id')
@@ -101,6 +101,7 @@ export default function Historique() {
           parDate[date][log.exercice_id].denivele_m = log.denivele_m
           parDate[date][log.exercice_id].nb_sauts = log.nb_sauts
           parDate[date][log.exercice_id].note_cardio = log.note_cardio
+          parDate[date][log.exercice_id].kcal = (parDate[date][log.exercice_id].kcal || 0) + (log.kcal || 0)
         } else {
           parDate[date][log.exercice_id].series.push({
             serie: log.serie_numero,
@@ -114,17 +115,11 @@ export default function Historique() {
         const exercices = Object.values(exosMap)
         const nbSeries = exercices.reduce((a, e) => a + e.series.length, 0)
 
-        // Calcul kcal total (muscu + cardio)
-        let kcalTotal = 0
-        exercices.forEach((exo) => {
-          if (exo.type_exercice === 'cardio' && exo.duree_minutes && poidsCorps) {
-            kcalTotal += calculerCaloriesCardio({
-              activiteId: exo.activite_cardio,
-              dureeMinutes: exo.duree_minutes,
-              poidsCorps,
-            })
-          }
-        })
+        // Calcul kcal total — cardio depuis exo.kcal, muscu recalculé
+        const kcalTotal = exercices.reduce((total, exo) => {
+          if (exo.type_exercice === 'cardio') return total + (exo.kcal || 0)
+          return total // muscu non comptabilisé ici (pas de poids corps disponible facilement)
+        }, 0)
 
         // Poids max par exercice muscu
         exercices.forEach((exo) => {
