@@ -241,6 +241,7 @@ export default function SeanceJour() {
       activiteId: exo.activite_cardio,
       dureeMinutes: metriques.duree_minutes || 0,
       poidsCorps,
+      deniveleM: metriques.denivele_m || 0,
     })) : 0
 
     // Log pour débugger
