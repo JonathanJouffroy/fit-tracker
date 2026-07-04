@@ -45,7 +45,7 @@ export default function Historique() {
 
       // Exercices pour fallback nom + type
       const { data: tousExos } = await supabase
-        .from('exercices').select('id, nom, type_exercice, activite_cardio').eq('user_id', user.id)
+        .from('exercices').select('id, nom, type_exercice, activite_cardio, repetitions, poids_charge_kg').eq('user_id', user.id)
       const exoParId = {}
       tousExos?.forEach((e) => { exoParId[e.id] = e })
 
@@ -115,16 +115,21 @@ export default function Historique() {
         const exercices = Object.values(exosMap)
         const nbSeries = exercices.reduce((a, e) => a + e.series.length, 0)
 
-        // Calcul kcal total — cardio (stocké) + muscu (recalculé)
+        // Calcul kcal total — même méthode que la page séance
+        // Cardio : kcal stocké en base
+        // Muscu : calculerCaloriesExercice avec répétitions réelles moyennes
         let kcalTotal = 0
         exercices.forEach((exo) => {
           if (exo.type_exercice === 'cardio') {
             kcalTotal += exo.kcal || 0
           } else if (poidsCorps && exo.series.length > 0) {
+            const exoRef = exoParId[exo.id]
+            // Moyenne des répétitions réellement effectuées
+            const repsReelles = exo.series.reduce((a, s) => a + (s.reps || 0), 0) / exo.series.length
             kcalTotal += calculerCaloriesExercice({
               series: exo.series.length,
-              repetitions: exoParId[exo.id]?.repetitions || exo.series[0]?.reps || 10,
-              poidsCharge: exoParId[exo.id]?.poids_charge_kg || 0,
+              repetitions: Math.round(repsReelles) || exoRef?.repetitions || 10,
+              poidsCharge: exoRef?.poids_charge_kg || 0,
               poidsCorps,
             })
           }
