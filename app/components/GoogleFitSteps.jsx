@@ -1,16 +1,19 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-const OBJECTIF_PAS = 8000 // objectif par défaut
+const OBJECTIF_PAS = 8000
+// Formule standard : ~0.04 kcal par pas par 10kg de poids corporel
+function calculerKcalPas(pas, poidsKg) {
+  if (!pas || !poidsKg) return 0
+  return Math.round(pas * 0.04 * (poidsKg / 10))
+}
 
-export default function GoogleFitSteps() {
-  const [statut, setStatut] = useState('loading') // loading | connected | disconnected | error
+export default function GoogleFitSteps({ poidsCorps }) {
+  const [statut, setStatut] = useState('loading')
   const [pas, setPas] = useState(null)
   const [needsReauth, setNeedsReauth] = useState(false)
 
-  useEffect(() => {
-    chargerPas()
-  }, [])
+  useEffect(() => { chargerPas() }, [])
 
   async function chargerPas() {
     setStatut('loading')
@@ -18,13 +21,11 @@ export default function GoogleFitSteps() {
       const res = await fetch('/api/fitness/steps')
       if (!res.ok) { setStatut('error'); return }
       const data = await res.json()
-
       if (!data.connected) {
         setStatut('disconnected')
         if (data.needsReauth) setNeedsReauth(true)
         return
       }
-
       setPas(data.pas)
       setStatut('connected')
     } catch {
@@ -39,15 +40,12 @@ export default function GoogleFitSteps() {
     setPas(null)
   }
 
-  function connecter() {
-    window.location.href = '/api/auth/google-fit'
-  }
+  function connecter() { window.location.href = '/api/auth/google-fit' }
 
   const pourcentage = pas !== null ? Math.min(100, Math.round((pas / OBJECTIF_PAS) * 100)) : 0
   const objectifAtteint = pas !== null && pas >= OBJECTIF_PAS
-
-  // Couleur selon la progression
   const couleur = objectifAtteint ? '#22c55e' : pourcentage > 60 ? 'var(--orange)' : '#3B82F6'
+  const kcalPas = calculerKcalPas(pas, poidsCorps)
 
   if (statut === 'loading') {
     return (
@@ -94,8 +92,7 @@ export default function GoogleFitSteps() {
             <span className="text-2xl">👟</span>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Erreur de connexion Google Fit</p>
           </div>
-          <button onClick={chargerPas}
-            className="text-xs px-3 py-1.5 rounded-lg"
+          <button onClick={chargerPas} className="text-xs px-3 py-1.5 rounded-lg"
             style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
             Réessayer
           </button>
@@ -104,7 +101,6 @@ export default function GoogleFitSteps() {
     )
   }
 
-  // Connecté — affichage des pas
   return (
     <div className="card mb-3">
       <div className="flex items-center justify-between mb-2">
@@ -112,7 +108,9 @@ export default function GoogleFitSteps() {
           <span className="text-2xl">{objectifAtteint ? '🏅' : '👟'}</span>
           <div>
             <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Pas du jour</p>
-            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>via Google Fit</p>
+            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+              via Google Fit{kcalPas > 0 ? ` · 🔥 ${kcalPas} kcal` : ''}
+            </p>
           </div>
         </div>
         <div className="text-right">
@@ -123,7 +121,6 @@ export default function GoogleFitSteps() {
         </div>
       </div>
 
-      {/* Barre de progression */}
       <div className="w-full h-2 rounded-full overflow-hidden mb-1" style={{ background: 'var(--surface-2)' }}>
         <div className="h-full rounded-full transition-all"
           style={{ width: `${pourcentage}%`, background: couleur }} />
