@@ -21,7 +21,10 @@ function GoogleFitCallback() {
   return null
 }
 
-function aujourdHui() { return new Date().toISOString().split('T')[0] }
+function aujourdHui() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 
 const TYPES_REPAS = [
   { value: 'petit-dejeuner', label: 'Petit-déj', icon: '🍳' },
@@ -76,7 +79,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase.from('jours').select('*').eq('numero', numeroJour).single(),
         supabase.from('exercices').select('*').eq('user_id', user.id),
-        supabase.from('seances_log').select('exercice_id, serie_numero, kcal').eq('user_id', user.id).eq('date_seance', today),
+        supabase.from('seances_log').select('exercice_id, serie_numero, kcal, duree_minutes').eq('user_id', user.id).eq('date_seance', today),
         supabase.from('seances_duree').select('duree_secondes').eq('user_id', user.id).eq('date_seance', today).order('created_at', { ascending: false }).limit(1),
         supabase.from('repas').select('*, options_repas(kcal)').eq('user_id', user.id).eq('date_repas', today),
         supabase.from('profil').select('*').eq('user_id', user.id).single(),
@@ -106,9 +109,27 @@ export default function Dashboard() {
       setCardioTotal(exosCardio.length)
       setCardioFait(exosCardio.filter(e => (logsParExo[String(e.id)] || 0) >= 1).length)
 
-      // Calories cardio depuis les logs (colonne kcal stockée à la validation)
-      const kcalCardioLogs = (logsData || []).reduce((a, l) => a + (l.kcal || 0), 0)
-      setKcalBrulees(kcalCardioLogs)
+      // Calories brûlées — depuis kcal stocké OU recalculé depuis duree_minutes
+      const poids = mesuresData?.[0]?.poids_kg || null
+      let kcalBruleesTotal = 0
+      if (poids) {
+        const { calculerCaloriesCardio: calcCardio } = await import('@/lib/calculs')
+        logsData?.forEach(l => {
+          if (l.kcal) { kcalBruleesTotal += l.kcal }
+          else if (l.duree_minutes && poids) {
+            // Recalcul depuis les métriques (anciens logs)
+            const exoCardio = exosJour.find(e => String(e.id) === String(l.exercice_id) && e.type_exercice === 'cardio')
+            if (exoCardio) {
+              kcalBruleesTotal += calcCardio({
+                activiteId: exoCardio.activite_cardio,
+                dureeMinutes: l.duree_minutes,
+                poidsCorps: poids,
+              })
+            }
+          }
+        })
+      }
+      setKcalBrulees(Math.round(kcalBruleesTotal))
 
       setDureeSeance(dureesData?.[0]?.duree_secondes || null)
 
