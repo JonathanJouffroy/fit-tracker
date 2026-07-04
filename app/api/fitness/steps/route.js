@@ -84,6 +84,7 @@ export async function GET() {
     const endTimeMillis = maintenant2.getTime()
 
     // Appel Google Fit API — agrégation des pas sur la journée
+    // On utilise uniquement le dataTypeName sans restreindre la source
     const fitResponse = await fetch(
       'https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate',
       {
@@ -95,7 +96,6 @@ export async function GET() {
         body: JSON.stringify({
           aggregateBy: [{
             dataTypeName: 'com.google.step_count.delta',
-            dataSourceId: 'derived:com.google.step_count.delta:com.google.android.gms:estimated_steps',
           }],
           bucketByTime: { durationMillis: endTimeMillis - startTimeMillis },
           startTimeMillis,
@@ -111,6 +111,9 @@ export async function GET() {
     }
 
     const fitData = await fitResponse.json()
+
+    // Log temporaire pour débugger
+    console.log('Google Fit response buckets:', JSON.stringify(fitData.bucket?.slice(0,2), null, 2))
 
     // Extraire le nombre de pas
     let totalPas = 0
