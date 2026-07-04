@@ -13,6 +13,7 @@ export default function FormCardio({ exo, poidsCorps, onTerminer, onAnnuler }) {
     activiteId: exo.activite_cardio,
     dureeMinutes: Number(valeurs.duree_minutes) || 0,
     poidsCorps,
+    deniveleM: Number(valeurs.denivele_m) || 0,
   })
 
   // Allure calculée pour la course
