@@ -55,7 +55,9 @@ export default function SeanceJour() {
   const [editPoidsCharge, setEditPoidsCharge] = useState('')
   const [editNote, setEditNote] = useState('')
 
-  const storageKey = `seance-${jourId}-${new Date().toISOString().split('T')[0]}`
+  const d = new Date()
+  const dateLocale = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const storageKey = `seance-${jourId}-${dateLocale}`
 
   useEffect(() => {
     try {
