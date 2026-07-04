@@ -119,16 +119,17 @@ export default function Dashboard() {
         (logsParNom[e.nom] || 0) >= 1
       ).length)
 
-      // Calories brûlées — kcal stocké OU recalculé depuis duree_minutes
+      // Calories brûlées — cardio (kcal stocké) + muscu (recalculé)
       const poids = mesuresData?.[0]?.poids_kg || null
       let kcalBruleesTotal = 0
       if (logsData?.length) {
-        const { calculerCaloriesCardio: calcCardio } = await import('@/lib/calculs')
+        const { calculerCaloriesCardio: calcCardio, calculerCaloriesExercice: calcMuscu } = await import('@/lib/calculs')
+
+        // Calories cardio
         logsData.forEach(l => {
           if (l.kcal) {
             kcalBruleesTotal += l.kcal
           } else if (l.duree_minutes && poids) {
-            // Trouver l'exercice cardio correspondant pour avoir activite_cardio
             const exoMatch = exosJour.find(e =>
               (String(e.id) === String(l.exercice_id) || e.nom === l.exercice_nom) &&
               e.type_exercice === 'cardio'
@@ -142,6 +143,26 @@ export default function Dashboard() {
             }
           }
         })
+
+        // Calories muscu — grouper les logs par exercice et calculer
+        if (poids) {
+          const parExo = {}
+          logsData.forEach(l => {
+            const exo = exosJour.find(e => String(e.id) === String(l.exercice_id))
+            if (!exo || exo.type_exercice === 'cardio') return
+            const key = String(l.exercice_id)
+            if (!parExo[key]) parExo[key] = { count: 0, exo }
+            parExo[key].count++
+          })
+          Object.values(parExo).forEach(({ count, exo }) => {
+            kcalBruleesTotal += calcMuscu({
+              series: count,
+              repetitions: exo.repetitions,
+              poidsCharge: exo.poids_charge_kg,
+              poidsCorps: poids,
+            })
+          })
+        }
       }
       setKcalBrulees(Math.round(kcalBruleesTotal))
 
