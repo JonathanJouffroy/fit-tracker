@@ -95,15 +95,16 @@ export default function Dashboard() {
       const logsParExo = {}
       logsData?.forEach(l => {
         if (!l.exercice_id) return
-        if (!logsParExo[l.exercice_id]) logsParExo[l.exercice_id] = 0
-        logsParExo[l.exercice_id]++
+        const key = String(l.exercice_id)
+        if (!logsParExo[key]) logsParExo[key] = 0
+        logsParExo[key]++
       })
 
-      const seriesFaitesCount = exosMuscu.reduce((a, e) => a + Math.min(logsParExo[e.id] || 0, e.series || 0), 0)
+      const seriesFaitesCount = exosMuscu.reduce((a, e) => a + Math.min(logsParExo[String(e.id)] || 0, e.series || 0), 0)
       setSeriesFaites(seriesFaitesCount)
 
       setCardioTotal(exosCardio.length)
-      setCardioFait(exosCardio.filter(e => (logsParExo[e.id] || 0) >= 1).length)
+      setCardioFait(exosCardio.filter(e => (logsParExo[String(e.id)] || 0) >= 1).length)
 
       // Calories cardio depuis les logs (colonne kcal stockée à la validation)
       const kcalCardioLogs = (logsData || []).reduce((a, l) => a + (l.kcal || 0), 0)
