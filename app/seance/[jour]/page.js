@@ -103,6 +103,24 @@ export default function SeanceJour() {
       setExercices(exosData || [])
       setPoidsCorps(mesures?.[0]?.poids_kg || null)
 
+      // Charger les logs du jour pour initialiser seriesFaites et kcalCardioTotal
+      const { data: logsJour } = await supabase.from('seances_log')
+        .select('exercice_id, serie_numero, kcal, duree_minutes')
+        .eq('user_id', user.id)
+        .eq('date_seance', (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })())
+
+      if (logsJour?.length) {
+        const sf = {}
+        let kcalCardio = 0
+        logsJour.forEach(l => {
+          if (!sf[l.exercice_id]) sf[l.exercice_id] = 0
+          sf[l.exercice_id]++
+          if (l.kcal) kcalCardio += l.kcal
+        })
+        setSeriesFaites(sf)
+        setKcalCardioTotal(kcalCardio)
+      }
+
       const map = {}
       tousExos?.forEach((e) => { if (!map[e.nom]) map[e.nom] = []; map[e.nom].push(e.id) })
       setIdsByNom(map)
