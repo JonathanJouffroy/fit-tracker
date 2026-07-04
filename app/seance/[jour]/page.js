@@ -219,37 +219,43 @@ export default function SeanceJour() {
   }
 
   async function terminerCardio(exo, metriques) {
-    const kcalCardio = poidsCorps ? calculerCaloriesCardio({
+    const kcalCardio = poidsCorps ? Math.round(calculerCaloriesCardio({
       activiteId: exo.activite_cardio,
       dureeMinutes: metriques.duree_minutes || 0,
       poidsCorps,
-    }) : 0
+    })) : 0
 
-    // Insert principal sans kcal (compatible même si la colonne n'existe pas encore)
-    const insertData = {
-      user_id: userId,
-      exercice_id: exo.id,
-      exercice_nom: exo.nom,
-      serie_numero: 1,
-      repetitions_faites: 0,
-      poids_kg: null,
-      duree_minutes: metriques.duree_minutes || null,
-      distance_m: metriques.distance_m || null,
-      denivele_m: metriques.denivele_m || null,
-      nb_sauts: metriques.nb_sauts || null,
-      note_cardio: metriques.note_cardio || null,
+    // Log pour débugger
+    console.log('terminerCardio - exo:', exo.id, exo.nom, exo.activite_cardio)
+    console.log('terminerCardio - metriques:', metriques)
+    console.log('terminerCardio - kcal:', kcalCardio)
+
+    // Insert minimal d'abord (sans les colonnes optionnelles)
+    const { data: logData, error: erreurInsert } = await supabase
+      .from('seances_log')
+      .insert([{
+        user_id: userId,
+        exercice_id: exo.id,
+        exercice_nom: exo.nom,
+        serie_numero: 1,
+        repetitions_faites: 0,
+        poids_kg: null,
+        duree_minutes: metriques.duree_minutes || null,
+        distance_m: metriques.distance_m || null,
+        denivele_m: metriques.denivele_m || null,
+        nb_sauts: metriques.nb_sauts || null,
+        note_cardio: metriques.note_cardio || null,
+        kcal: kcalCardio || null,
+      }])
+      .select('id')
+
+    if (erreurInsert) {
+      console.error('Erreur insert cardio:', erreurInsert)
+      toast(`Erreur: ${erreurInsert.message}`, 'error')
+      return
     }
 
-    // Tenter d'ajouter kcal (échoue silencieusement si colonne absente)
-    try {
-      const { error } = await supabase.from('seances_log').insert([{ ...insertData, kcal: kcalCardio || null }])
-      if (error) {
-        // Si erreur (colonne kcal absente), réessayer sans kcal
-        await supabase.from('seances_log').insert([insertData])
-      }
-    } catch {
-      await supabase.from('seances_log').insert([insertData])
-    }
+    console.log('Insert cardio réussi, id:', logData?.[0]?.id)
 
     setSeriesFaites((s) => ({ ...s, [exo.id]: 1 }))
     setKcalCardioTotal((prev) => prev + (kcalCardio || 0))
