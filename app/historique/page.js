@@ -80,30 +80,44 @@ export default function Historique() {
       logs?.forEach((log) => {
         const date = log.date_seance
         if (!parDate[date]) parDate[date] = {}
-        const exoInfo = exoParId[log.exercice_id]
+
+        // Logs circuit : exercice_nom = "Circuit X — Exo Y", exercice_id = null
+        // On utilise exercice_nom comme clé unique pour les distinguer
+        const estCircuit = !log.exercice_id && log.exercice_nom?.includes(' — ')
+        const cle = log.exercice_id != null ? log.exercice_id : `circuit-${log.exercice_nom}`
+
+        const exoInfo = log.exercice_id != null ? exoParId[log.exercice_id] : null
         const nomExo = log.exercice_nom || exoInfo?.nom || `Exercice #${log.exercice_id}`
         const isCardio = exoInfo?.type_exercice === 'cardio'
 
-        if (!parDate[date][log.exercice_id]) {
-          parDate[date][log.exercice_id] = {
+        if (!parDate[date][cle]) {
+          parDate[date][cle] = {
+            id: cle,
             nom: nomExo,
-            type_exercice: exoInfo?.type_exercice || 'muscu',
+            type_exercice: estCircuit ? 'circuit' : (exoInfo?.type_exercice || 'muscu'),
             activite_cardio: exoInfo?.activite_cardio || null,
             series: [],
-            // Cardio métriques (premier log)
             duree_minutes: null, distance_m: null, denivele_m: null, nb_sauts: null, note_cardio: null,
+            kcal: 0,
           }
         }
 
         if (isCardio && log.duree_minutes) {
-          parDate[date][log.exercice_id].duree_minutes = log.duree_minutes
-          parDate[date][log.exercice_id].distance_m = log.distance_m
-          parDate[date][log.exercice_id].denivele_m = log.denivele_m
-          parDate[date][log.exercice_id].nb_sauts = log.nb_sauts
-          parDate[date][log.exercice_id].note_cardio = log.note_cardio
-          parDate[date][log.exercice_id].kcal = (parDate[date][log.exercice_id].kcal || 0) + (log.kcal || 0)
+          parDate[date][cle].duree_minutes = log.duree_minutes
+          parDate[date][cle].distance_m = log.distance_m
+          parDate[date][cle].denivele_m = log.denivele_m
+          parDate[date][cle].nb_sauts = log.nb_sauts
+          parDate[date][cle].note_cardio = log.note_cardio
+          parDate[date][cle].kcal = (parDate[date][cle].kcal || 0) + (log.kcal || 0)
+        } else if (estCircuit) {
+          // Log circuit : on stocke les reps comme séries normales
+          parDate[date][cle].series.push({
+            serie: log.serie_numero,
+            reps: log.repetitions_faites,
+            poids: log.poids_kg,
+          })
         } else {
-          parDate[date][log.exercice_id].series.push({
+          parDate[date][cle].series.push({
             serie: log.serie_numero,
             reps: log.repetitions_faites,
             poids: log.poids_kg,
@@ -120,9 +134,20 @@ export default function Historique() {
         exercices.forEach((exo) => {
           if (exo.type_exercice === 'cardio') {
             kcalTotal += exo.kcal || 0
+          } else if (exo.type_exercice === 'circuit') {
+            // Circuit : calculer depuis les reps de chaque série (= chaque exo × tour)
+            if (poidsCorps) {
+              exo.series.forEach((s) => {
+                if (s.reps) {
+                  kcalTotal += calculerCaloriesExercice({
+                    series: 1, repetitions: s.reps,
+                    poidsCharge: 0, poidsCorps,
+                  })
+                }
+              })
+            }
           } else if (poidsCorps && exo.series.length > 0) {
             const exoRef = exoParId[exo.id]
-            // Calculer série par série avec les vraies reps
             exo.series.forEach((s) => {
               kcalTotal += calculerCaloriesExercice({
                 series: 1,
