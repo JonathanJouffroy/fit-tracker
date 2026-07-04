@@ -300,7 +300,8 @@ export default function SeanceJour() {
 
   function kcalExo(exo, nbSeries) {
     if (exo.type_exercice === 'cardio') return 0
-    return calculerCaloriesExercice({ series: nbSeries, repetitions: exo.repetitions, poidsCharge: exo.poids_charge_kg, poidsCorps })
+    const reps = Number(repsReelles[exo.id]) || exo.repetitions
+    return calculerCaloriesExercice({ series: nbSeries, repetitions: reps, poidsCharge: exo.poids_charge_kg, poidsCorps })
   }
 
   const exosMuscu = exercices.filter(e => e.type_exercice !== 'cardio')
