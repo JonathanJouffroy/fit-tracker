@@ -9,6 +9,7 @@ import AutocompleteInput from '@/app/components/AutocompleteInput'
 import FormCardio from '@/app/components/FormCardio'
 import GifExercice from '@/app/components/GifExercice'
 import Drawer from '@/app/components/Drawer'
+import CircuitMode from '@/app/components/CircuitMode'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonExercice } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
@@ -36,6 +37,7 @@ export default function SeanceJour() {
   const [drawerExo, setDrawerExo] = useState(null)
   const [kcalCardioTotal, setKcalCardioTotal] = useState(0)
   const [logsJourMemo, setLogsJourMemo] = useState([])
+  const [circuitActif, setCircuitActif] = useState(false)
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -334,7 +336,16 @@ export default function SeanceJour() {
     <>
     <div>
       <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
-      <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
+        {exercices.filter(e => e.type_exercice !== 'cardio').length >= 2 && (
+          <button onClick={() => setCircuitActif(true)}
+            className="text-xs px-3 py-1.5 rounded-full font-semibold flex items-center gap-1"
+            style={{ background: 'var(--surface-2)', color: 'var(--orange)', border: '1px solid var(--orange)' }}>
+            ⚡ Circuit
+          </button>
+        )}
+      </div>
 
       <TimerSeance jourId={jourId} />
 
@@ -614,6 +625,16 @@ export default function SeanceJour() {
           )}
         </div>
       )}
+    {/* Mode circuit */}
+    {circuitActif && (
+      <CircuitMode
+        exercices={exercices}
+        userId={userId}
+        poidsCorps={poidsCorps}
+        onTerminer={() => { setCircuitActif(false); chargerTout() }}
+      />
+    )}
+
     </Drawer>
     </>
   )
