@@ -12,7 +12,7 @@ import Drawer from '@/app/components/Drawer'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonExercice } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
-import { calculerCaloriesExercice, ACTIVITES_CARDIO } from '@/lib/calculs'
+import { calculerCaloriesExercice, calculerCaloriesCardio, ACTIVITES_CARDIO } from '@/lib/calculs'
 
 export default function SeanceJour() {
   const { jour: jourId } = useParams()
@@ -216,6 +216,13 @@ export default function SeanceJour() {
   }
 
   async function terminerCardio(exo, metriques) {
+    // Calculer les calories cardio à partir des métriques
+    const kcalCardio = poidsCorps ? calculerCaloriesCardio({
+      activiteId: exo.activite_cardio,
+      dureeMinutes: metriques.duree_minutes || 0,
+      poidsCorps,
+    }) : 0
+
     await supabase.from('seances_log').insert([{
       user_id: userId, exercice_id: exo.id, exercice_nom: exo.nom,
       serie_numero: 1, repetitions_faites: 0, poids_kg: null,
@@ -224,6 +231,7 @@ export default function SeanceJour() {
       denivele_m: metriques.denivele_m,
       nb_sauts: metriques.nb_sauts,
       note_cardio: metriques.note_cardio,
+      kcal: kcalCardio || null,
     }])
     setSeriesFaites((s) => ({ ...s, [exo.id]: 1 }))
     setCardioEnCours(null)
@@ -252,7 +260,16 @@ export default function SeanceJour() {
     return calculerCaloriesExercice({ series: nbSeries, repetitions: exo.repetitions, poidsCharge: exo.poids_charge_kg, poidsCorps })
   }
 
+  function kcalCardioFait(exo) {
+    if (exo.type_exercice !== 'cardio') return 0
+    if (!seriesFaites[exo.id]) return 0  // pas encore enregistré
+    // On ne peut pas recalculer sans les métriques — on affiche 0 ici
+    // Les calories réelles sont stockées dans seances_log.kcal
+    return 0
+  }
+
   const exosMuscu = exercices.filter(e => e.type_exercice !== 'cardio')
+  const exosCardio = exercices.filter(e => e.type_exercice === 'cardio')
   const kcalPrevu = exosMuscu.reduce((a, e) => a + kcalExo(e, e.series), 0)
   const kcalFait = exosMuscu.reduce((a, e) => a + kcalExo(e, seriesFaites[e.id] || 0), 0)
 
