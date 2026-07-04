@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { calculerCaloriesCible, calculerCaloriesExercice, NIVEAUX_ACTIVITE, OBJECTIFS } from '@/lib/calculs'
+import { calculerCaloriesCible, calculerCaloriesExercice, calculerCaloriesCardio, NIVEAUX_ACTIVITE, OBJECTIFS } from '@/lib/calculs'
 import JaugeCalories from '@/app/components/JaugeCalories'
 import CourbeObjectifPoids from '@/app/components/CourbeObjectifPoids'
 import Header from '@/app/components/Header'
@@ -22,7 +22,9 @@ function categorieIMC(imc) {
   return { label: 'Obésité', color: 'text-red-500' }
 }
 
-function formatDate(d) { return d.toISOString().split('T')[0] }
+function formatDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 function labelJour(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' })
 }
@@ -103,28 +105,41 @@ export default function Profil() {
     tousExercices?.forEach((e) => { exoParId[e.id] = e })
 
     // Fonction utilitaire : calcule les kcal brûlées depuis une liste de logs
-    // Inclut muscu (calculé) + cardio (stocké dans kcal)
     function calcBrule(logs, poidsC) {
       if (!logs?.length) return 0
       let total = 0
       const parExo = {}
       logs.forEach((l) => {
-        // Calories cardio directement stockées dans le log
+        // 1. Calories cardio stockées directement
         if (l.kcal) { total += l.kcal; return }
-        // Calories muscu calculées
+        // 2. Calories cardio recalculées depuis les métriques (anciens logs sans kcal)
+        if (l.duree_minutes && l.activite_cardio && poidsC) {
+          total += calculerCaloriesCardio({
+            activiteId: l.activite_cardio,
+            dureeMinutes: l.duree_minutes,
+            poidsCorps: poidsC,
+          })
+          return
+        }
+        // 3. Calories muscu calculées depuis les séries
         const exo = exoParId[l.exercice_id]
         if (!exo || !poidsC) return
-        if (!parExo[l.exercice_id]) parExo[l.exercice_id] = { count: 0, exo }
-        parExo[l.exercice_id].count += 1
+        const key = String(l.exercice_id)
+        if (!parExo[key]) parExo[key] = { count: 0, exo }
+        parExo[key].count += 1
       })
       total += Object.values(parExo).reduce((acc, { count, exo }) =>
-        acc + calculerCaloriesExercice({ series: count, repetitions: exo.repetitions, poidsCharge: exo.poids_charge_kg, poidsCorps: poidsC }), 0)
-      return total
+        acc + calculerCaloriesExercice({
+          series: count, repetitions: exo.repetitions,
+          poidsCharge: exo.poids_charge_kg, poidsCorps: poidsC
+        }), 0)
+      return Math.round(total)
     }
 
     // Calories brûlées aujourd'hui
     const { data: logsJour } = await supabase.from('seances_log')
-      .select('exercice_id, kcal').eq('user_id', user.id).eq('date_seance', today)
+      .select('exercice_id, kcal, duree_minutes')
+      .eq('user_id', user.id).eq('date_seance', today)
     setCaloriesBrulees(calcBrule(logsJour, poidsCorps))
 
     // ---- Historique 7 derniers jours ----
@@ -135,7 +150,7 @@ export default function Profil() {
     const [{ data: repas7 }, { data: logs7 }] = await Promise.all([
       supabase.from('repas').select('date_repas, options_repas(kcal), kcal_libre')
         .eq('user_id', user.id).gte('date_repas', dates7[0]).lte('date_repas', dates7[6]),
-      supabase.from('seances_log').select('date_seance, exercice_id, kcal')
+      supabase.from('seances_log').select('date_seance, exercice_id, kcal, duree_minutes')
         .eq('user_id', user.id).gte('date_seance', dates7[0]).lte('date_seance', dates7[6]),
     ])
 
@@ -151,7 +166,7 @@ export default function Profil() {
     const [{ data: repasMois }, { data: logsMois }] = await Promise.all([
       supabase.from('repas').select('date_repas, options_repas(kcal), kcal_libre')
         .eq('user_id', user.id).gte('date_repas', debutMois),
-      supabase.from('seances_log').select('date_seance, exercice_id, kcal')
+      supabase.from('seances_log').select('date_seance, exercice_id, kcal, duree_minutes')
         .eq('user_id', user.id).gte('date_seance', debutMois),
     ])
 
