@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [cardioTotal, setCardioTotal] = useState(0)
   const [dureeSeance, setDureeSeance] = useState(null)
   const [kcalBrulees, setKcalBrulees] = useState(0)
+  const [kcalPas, setKcalPas] = useState(0)
 
   const [repas, setRepas] = useState([])
   const [caloriesCible, setCaloriesCible] = useState(null)
@@ -249,7 +250,7 @@ export default function Dashboard() {
       )}
 
       {/* Pas du jour via Google Fit */}
-      <GoogleFitSteps poidsCorps={dernierPoids} />
+      <GoogleFitSteps poidsCorps={dernierPoids} onKcalCalculees={setKcalPas} />
 
       {/* Carte séance du jour */}
       <Link href={jourSemaine ? `/seance/${jourSemaine.id}` : '/'}>
