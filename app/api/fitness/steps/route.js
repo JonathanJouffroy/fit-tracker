@@ -100,10 +100,9 @@ export async function GET() {
 
       console.log('Sources trouvées:', stepSources.length)
 
-      const startNs = startTimeMillis * 1000000
-      const endNs = endTimeMillis * 1000000
+      const startNs = BigInt(startTimeMillis) * BigInt(1000000)
+      const endNs = BigInt(endTimeMillis) * BigInt(1000000)
       console.log('startNs:', startNs.toString(), 'endNs:', endNs.toString())
-      console.log('MAX_SAFE_INTEGER:', Number.MAX_SAFE_INTEGER.toString())
 
       // Lire toutes les sources en parallèle
       const results = await Promise.all(
