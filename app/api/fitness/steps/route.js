@@ -102,6 +102,8 @@ export async function GET() {
 
       const startNs = startTimeMillis * 1000000
       const endNs = endTimeMillis * 1000000
+      console.log('startNs:', startNs.toString(), 'endNs:', endNs.toString())
+      console.log('MAX_SAFE_INTEGER:', Number.MAX_SAFE_INTEGER.toString())
 
       // Lire toutes les sources en parallèle
       const results = await Promise.all(
@@ -122,9 +124,15 @@ export async function GET() {
         data.point?.forEach(point => {
           point.value?.forEach(val => { count += val.intVal || 0 })
         })
+        if (count > 0 || data.point?.length > 0) {
+          console.log(`${stepSources[i]}: ${count} pas, ${data.point?.length} points`)
+          if (data.point?.length > 0) console.log('Premier point:', JSON.stringify(data.point[0]))
+        } else {
+          // Logger même les sources vides pour voir la structure
+          console.log(`VIDE: ${stepSources[i]}`, JSON.stringify(data).slice(0, 150))
+        }
         if (count > 0) {
           parSource[stepSources[i]] = count
-          console.log(`${stepSources[i]}: ${count} pas`)
         }
       })
 
