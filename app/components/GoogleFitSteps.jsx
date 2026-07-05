@@ -14,7 +14,18 @@ export default function GoogleFitSteps({ poidsCorps, onKcalCalculees }) {
   const [pas, setPas] = useState(null)
   const [needsReauth, setNeedsReauth] = useState(false)
 
-  useEffect(() => { chargerPas() }, [])
+  useEffect(() => {
+    chargerPas()
+    // Rafraîchir les pas quand l'utilisateur revient sur l'app
+    function onFocus() { chargerPas() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') chargerPas()
+    })
+    return () => {
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [])
 
   async function chargerPas() {
     setStatut('loading')
@@ -137,9 +148,10 @@ export default function GoogleFitSteps({ poidsCorps, onKcalCalculees }) {
             ? `Objectif atteint ! (+${(pas - OBJECTIF_PAS).toLocaleString('fr-FR')} pas)`
             : `${(OBJECTIF_PAS - pas).toLocaleString('fr-FR')} pas restants`}
         </p>
-        <button onClick={deconnecter} className="text-xs" style={{ color: 'var(--text-faint)' }}>
-          Déconnecter
-        </button>
+        <div className="flex gap-2">
+          <button onClick={chargerPas} className="text-xs" style={{ color: 'var(--text-faint)' }}>↻</button>
+          <button onClick={deconnecter} className="text-xs" style={{ color: 'var(--text-faint)' }}>Déconnecter</button>
+        </div>
       </div>
     </div>
   )
