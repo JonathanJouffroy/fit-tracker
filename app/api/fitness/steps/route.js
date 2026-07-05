@@ -112,12 +112,19 @@ export async function GET() {
 
     const fitData = await fitResponse.json()
 
+    // Logs de debug
+    console.log('startTimeMillis:', startTimeMillis, '=', new Date(startTimeMillis).toISOString())
+    console.log('endTimeMillis:', endTimeMillis, '=', new Date(endTimeMillis).toISOString())
+    console.log('fitData buckets count:', fitData.bucket?.length)
+    console.log('fitData raw:', JSON.stringify(fitData).slice(0, 500))
+
     // Extraire le nombre de pas
     let totalPas = 0
     fitData.bucket?.forEach((bucket) => {
       bucket.dataset?.forEach((dataset) => {
         dataset.point?.forEach((point) => {
           point.value?.forEach((val) => {
+            console.log('val:', val)
             totalPas += val.intVal || 0
           })
         })
