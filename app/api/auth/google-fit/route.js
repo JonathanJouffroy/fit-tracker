@@ -20,7 +20,11 @@ export async function GET(request) {
     }
 
     const redirectUri = `${appUrl}/api/auth/google-fit/callback`
-    const scope = 'https://www.googleapis.com/auth/fitness.activity.read'
+    const scope = [
+      'https://www.googleapis.com/auth/fitness.activity.read',
+      'https://www.googleapis.com/auth/fitness.body.read',
+      'https://www.googleapis.com/auth/fitness.location.read',
+    ].join(' ')
 
     // Stocker le user_id dans le state pour le retrouver dans le callback
     const state = Buffer.from(JSON.stringify({ userId: user.id })).toString('base64')
