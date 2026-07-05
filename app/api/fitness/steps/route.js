@@ -83,6 +83,19 @@ export async function GET() {
     const startTimeMillis = debutJour.getTime()
     const endTimeMillis = maintenant2.getTime()
 
+    // Debug : lister toutes les sources disponibles
+    const sourcesResponse = await fetch(
+      'https://www.googleapis.com/fitness/v1/users/me/dataSources',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    if (sourcesResponse.ok) {
+      const sources = await sourcesResponse.json()
+      const stepSources = sources.dataSource?.filter(s =>
+        s.dataType?.name?.includes('step') || s.dataStreamId?.includes('step')
+      )
+      console.log('Step sources:', JSON.stringify(stepSources?.map(s => s.dataStreamId)))
+    }
+
     // Appel Google Fit API — deux requêtes en parallèle pour couvrir toutes les sources
     const bodyAggregate = JSON.stringify({
       aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
