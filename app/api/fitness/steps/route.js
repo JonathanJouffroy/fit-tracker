@@ -83,62 +83,58 @@ export async function GET() {
     const startTimeMillis = debutJour.getTime()
     const endTimeMillis = maintenant2.getTime()
 
-    // Sources connues à interroger directement (raw sources non incluses dans l'agrégation)
-    const rawSources = [
-      'raw:com.google.step_count.delta:com.garmin.android.apps.connectmobile:health_platform',
-      'derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas',
-    ]
-
-    // Plage en nanosecondes pour les sources directes
-    const startNs = startTimeMillis * 1000000
-    const endNs = endTimeMillis * 1000000
+    // Interroger toutes les sources de pas raw disponibles
+    const sourcesResponse = await fetch(
+      'https://www.googleapis.com/fitness/v1/users/me/dataSources',
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
 
     let totalPas = 0
 
-    // Interroger chaque source directement
-    const rawResults = await Promise.all(
-      rawSources.map(sourceId =>
-        fetch(
-          `https://www.googleapis.com/fitness/v1/users/me/dataSources/${encodeURIComponent(sourceId)}/datasets/${startNs}-${endNs}`,
-          { headers: { Authorization: `Bearer ${accessToken}` } }
-        ).then(r => r.ok ? r.json() : null).catch(() => null)
-      )
-    )
+    if (sourcesResponse.ok) {
+      const sources = await sourcesResponse.json()
+      // Toutes les sources de pas delta (raw et derived utiles)
+      const stepSources = sources.dataSource?.filter(s =>
+        s.dataType?.name === 'com.google.step_count.delta'
+      ).map(s => s.dataStreamId) || []
 
-    rawResults.forEach((data, i) => {
-      if (!data) return
-      let count = 0
-      data.point?.forEach(point => {
-        point.value?.forEach(val => { count += val.intVal || 0 })
-      })
-      console.log(`Source ${rawSources[i]}: ${count} pas`)
-      totalPas += count
-    })
+      console.log('Sources trouvées:', stepSources.length)
 
-    // Fallback sur l'agrégation si rien trouvé
-    if (totalPas === 0) {
-      const fitResponse = await fetch(
-        'https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate',
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
-            bucketByTime: { durationMillis: endTimeMillis - startTimeMillis },
-            startTimeMillis,
-            endTimeMillis,
-          }),
-        }
+      const startNs = startTimeMillis * 1000000
+      const endNs = endTimeMillis * 1000000
+
+      // Lire toutes les sources en parallèle
+      const results = await Promise.all(
+        stepSources.map(sourceId =>
+          fetch(
+            `https://www.googleapis.com/fitness/v1/users/me/dataSources/${encodeURIComponent(sourceId)}/datasets/${startNs}-${endNs}`,
+            { headers: { Authorization: `Bearer ${accessToken}` } }
+          ).then(r => r.ok ? r.json() : null).catch(() => null)
+        )
       )
-      if (fitResponse.ok) {
-        const fitData = await fitResponse.json()
-        fitData.bucket?.forEach(bucket => {
-          bucket.dataset?.forEach(dataset => {
-            dataset.point?.forEach(point => {
-              point.value?.forEach(val => { totalPas += val.intVal || 0 })
-            })
-          })
+
+      // Trouver la source avec le plus de pas (évite les doublons d'agrégation)
+      let maxPas = 0
+      const parSource = {}
+      results.forEach((data, i) => {
+        if (!data) return
+        let count = 0
+        data.point?.forEach(point => {
+          point.value?.forEach(val => { count += val.intVal || 0 })
         })
+        if (count > 0) {
+          parSource[stepSources[i]] = count
+          console.log(`${stepSources[i]}: ${count} pas`)
+        }
+      })
+
+      // Utiliser merge_step_deltas si disponible (évite doublons),
+      // sinon prendre la source avec le max de pas
+      const mergeSource = 'derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas'
+      if (parSource[mergeSource]) {
+        totalPas = parSource[mergeSource]
+      } else {
+        totalPas = Math.max(0, ...Object.values(parSource))
       }
     }
 
