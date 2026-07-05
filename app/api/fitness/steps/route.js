@@ -83,63 +83,66 @@ export async function GET() {
     const startTimeMillis = debutJour.getTime()
     const endTimeMillis = maintenant2.getTime()
 
-    // Debug : lister toutes les sources disponibles
-    const sourcesResponse = await fetch(
-      'https://www.googleapis.com/fitness/v1/users/me/dataSources',
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    )
-    if (sourcesResponse.ok) {
-      const sources = await sourcesResponse.json()
-      const stepSources = sources.dataSource?.filter(s =>
-        s.dataType?.name?.includes('step') || s.dataStreamId?.includes('step')
-      )
-      console.log('Step sources:', JSON.stringify(stepSources?.map(s => s.dataStreamId)))
-    }
+    // Sources connues à interroger directement (raw sources non incluses dans l'agrégation)
+    const rawSources = [
+      'raw:com.google.step_count.delta:com.garmin.android.apps.connectmobile:health_platform',
+      'derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas',
+    ]
 
-    // Appel Google Fit API — deux requêtes en parallèle pour couvrir toutes les sources
-    const bodyAggregate = JSON.stringify({
-      aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
-      bucketByTime: { durationMillis: endTimeMillis - startTimeMillis },
-      startTimeMillis,
-      endTimeMillis,
-    })
-
-    const [fitResponse1, fitResponse2] = await Promise.all([
-      fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: bodyAggregate,
-      }),
-      // Source alternative : estimated_steps directement
-      fetch(`https://www.googleapis.com/fitness/v1/users/me/dataSources/derived:com.google.step_count.delta:com.google.android.gms:estimated_steps/datasets/${startTimeMillis}000000-${endTimeMillis}000000`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }),
-    ])
+    // Plage en nanosecondes pour les sources directes
+    const startNs = startTimeMillis * 1000000
+    const endNs = endTimeMillis * 1000000
 
     let totalPas = 0
 
-    if (fitResponse1.ok) {
-      const fitData = await fitResponse1.json()
-      console.log('Aggregate raw:', JSON.stringify(fitData).slice(0, 300))
-      fitData.bucket?.forEach((bucket) => {
-        bucket.dataset?.forEach((dataset) => {
-          dataset.point?.forEach((point) => {
-            point.value?.forEach((val) => { totalPas += val.intVal || 0 })
+    // Interroger chaque source directement
+    const rawResults = await Promise.all(
+      rawSources.map(sourceId =>
+        fetch(
+          `https://www.googleapis.com/fitness/v1/users/me/dataSources/${encodeURIComponent(sourceId)}/datasets/${startNs}-${endNs}`,
+          { headers: { Authorization: `Bearer ${accessToken}` } }
+        ).then(r => r.ok ? r.json() : null).catch(() => null)
+      )
+    )
+
+    rawResults.forEach((data, i) => {
+      if (!data) return
+      let count = 0
+      data.point?.forEach(point => {
+        point.value?.forEach(val => { count += val.intVal || 0 })
+      })
+      console.log(`Source ${rawSources[i]}: ${count} pas`)
+      totalPas += count
+    })
+
+    // Fallback sur l'agrégation si rien trouvé
+    if (totalPas === 0) {
+      const fitResponse = await fetch(
+        'https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate',
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
+            bucketByTime: { durationMillis: endTimeMillis - startTimeMillis },
+            startTimeMillis,
+            endTimeMillis,
+          }),
+        }
+      )
+      if (fitResponse.ok) {
+        const fitData = await fitResponse.json()
+        fitData.bucket?.forEach(bucket => {
+          bucket.dataset?.forEach(dataset => {
+            dataset.point?.forEach(point => {
+              point.value?.forEach(val => { totalPas += val.intVal || 0 })
+            })
           })
         })
-      })
+      }
     }
 
-    // Si pas de résultat depuis aggregate, essayer la source directe
-    if (totalPas === 0 && fitResponse2.ok) {
-      const fitData2 = await fitResponse2.json()
-      console.log('Direct source raw:', JSON.stringify(fitData2).slice(0, 300))
-      fitData2.point?.forEach((point) => {
-        point.value?.forEach((val) => { totalPas += val.intVal || 0 })
-      })
-    }
-
-    console.log('Total pas:', totalPas)
+    console.log('Total pas final:', totalPas)
 
     return NextResponse.json({
       connected: true,
