@@ -83,53 +83,50 @@ export async function GET() {
     const startTimeMillis = debutJour.getTime()
     const endTimeMillis = maintenant2.getTime()
 
-    // Appel Google Fit API — agrégation des pas sur la journée
-    // On utilise uniquement le dataTypeName sans restreindre la source
-    const fitResponse = await fetch(
-      'https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate',
-      {
+    // Appel Google Fit API — deux requêtes en parallèle pour couvrir toutes les sources
+    const bodyAggregate = JSON.stringify({
+      aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
+      bucketByTime: { durationMillis: endTimeMillis - startTimeMillis },
+      startTimeMillis,
+      endTimeMillis,
+    })
+
+    const [fitResponse1, fitResponse2] = await Promise.all([
+      fetch('https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          aggregateBy: [{
-            dataTypeName: 'com.google.step_count.delta',
-          }],
-          bucketByTime: { durationMillis: endTimeMillis - startTimeMillis },
-          startTimeMillis,
-          endTimeMillis,
-        }),
-      }
-    )
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: bodyAggregate,
+      }),
+      // Source alternative : estimated_steps directement
+      fetch(`https://www.googleapis.com/fitness/v1/users/me/dataSources/derived:com.google.step_count.delta:com.google.android.gms:estimated_steps/datasets/${startTimeMillis}000000-${endTimeMillis}000000`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    ])
 
-    if (!fitResponse.ok) {
-      const err = await fitResponse.text()
-      console.error('Google Fit API error:', err)
-      return NextResponse.json({ connected: true, pas: null, error: 'API error' }, { status: 200 })
-    }
-
-    const fitData = await fitResponse.json()
-
-    // Logs de debug
-    console.log('startTimeMillis:', startTimeMillis, '=', new Date(startTimeMillis).toISOString())
-    console.log('endTimeMillis:', endTimeMillis, '=', new Date(endTimeMillis).toISOString())
-    console.log('fitData buckets count:', fitData.bucket?.length)
-    console.log('fitData raw:', JSON.stringify(fitData).slice(0, 500))
-
-    // Extraire le nombre de pas
     let totalPas = 0
-    fitData.bucket?.forEach((bucket) => {
-      bucket.dataset?.forEach((dataset) => {
-        dataset.point?.forEach((point) => {
-          point.value?.forEach((val) => {
-            console.log('val:', val)
-            totalPas += val.intVal || 0
+
+    if (fitResponse1.ok) {
+      const fitData = await fitResponse1.json()
+      console.log('Aggregate raw:', JSON.stringify(fitData).slice(0, 300))
+      fitData.bucket?.forEach((bucket) => {
+        bucket.dataset?.forEach((dataset) => {
+          dataset.point?.forEach((point) => {
+            point.value?.forEach((val) => { totalPas += val.intVal || 0 })
           })
         })
       })
-    })
+    }
+
+    // Si pas de résultat depuis aggregate, essayer la source directe
+    if (totalPas === 0 && fitResponse2.ok) {
+      const fitData2 = await fitResponse2.json()
+      console.log('Direct source raw:', JSON.stringify(fitData2).slice(0, 300))
+      fitData2.point?.forEach((point) => {
+        point.value?.forEach((val) => { totalPas += val.intVal || 0 })
+      })
+    }
+
+    console.log('Total pas:', totalPas)
 
     return NextResponse.json({
       connected: true,
