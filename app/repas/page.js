@@ -22,7 +22,10 @@ const OBJECTIF_LABELS = {
   tous: { label: 'Tous objectifs', color: '#6B7280', bg: '#F9FAFB', icon: '✓' },
 }
 
-function aujourdHui() { return new Date().toISOString().split('T')[0] }
+function aujourdHui() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
 
 export default function Repas() {
   const supabase = createClient()
