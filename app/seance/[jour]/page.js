@@ -475,28 +475,14 @@ export default function SeanceJour() {
             <div key={exo.id} className="flex flex-col gap-3"
               data-drag-id={exo.id}
               draggable
-              onDragStart={() => { setDragId(exo.id) }}
+              onDragStart={() => setDragId(exo.id)}
               onDragEnter={() => setDropId(exo.id)}
               onDragEnd={() => { if (dragId && dropId && dragId !== dropId) deplacerExercice(dragId, dropId); setDragId(null); setDropId(null) }}
               onDragOver={e => e.preventDefault()}
-              onTouchStart={() => { touchDragRef.current = exo.id; setDragId(exo.id) }}
-              onTouchMove={e => {
-                const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
-                const card = el?.closest('[data-drag-id]')
-                if (card) setDropId(card.getAttribute('data-drag-id'))
-              }}
-              onTouchEnd={() => {
-                if (touchDragRef.current && dropId && String(touchDragRef.current) !== String(dropId)) {
-                  deplacerExercice(touchDragRef.current, dropId)
-                }
-                touchDragRef.current = null; setDragId(null); setDropId(null)
-              }}
               style={{
                 opacity: dragId === exo.id ? 0.5 : 1,
                 outline: dropId === String(exo.id) && dragId !== exo.id ? '2px solid var(--orange)' : 'none',
                 borderRadius: '12px',
-                cursor: 'grab',
-                touchAction: 'none',
               }}>
               {cardioEnCours?.id === exo.id && (
                 <FormCardio exo={exo} poidsCorps={poidsCorps}
@@ -578,6 +564,24 @@ export default function SeanceJour() {
                         <button onClick={() => ouvrirEdition(exo)}
                           className="text-xs px-2 py-1 rounded-lg"
                           style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>✏️</button>
+                        {/* Handle drag mobile — touch events uniquement ici */}
+                        <button
+                          style={{ color: 'var(--text-faint)', cursor: 'grab', touchAction: 'none', fontSize: '16px', lineHeight: 1, padding: '0 4px' }}
+                          onTouchStart={e => { e.stopPropagation(); touchDragRef.current = exo.id; setDragId(exo.id) }}
+                          onTouchMove={e => {
+                            e.preventDefault()
+                            const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
+                            const card = el?.closest('[data-drag-id]')
+                            if (card) setDropId(card.getAttribute('data-drag-id'))
+                          }}
+                          onTouchEnd={() => {
+                            if (touchDragRef.current && dropId && String(touchDragRef.current) !== String(dropId)) {
+                              deplacerExercice(touchDragRef.current, dropId)
+                            }
+                            touchDragRef.current = null; setDragId(null); setDropId(null)
+                          }}>
+                          ⠿
+                        </button>
                         <button onClick={() => supprimerExercice(exo.id, exo.nom)} style={{ color: 'var(--text-faint)' }}>✕</button>
                       </div>
                     </div>
