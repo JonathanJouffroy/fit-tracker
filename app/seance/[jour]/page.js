@@ -42,7 +42,9 @@ export default function SeanceJour() {
   const [logsJourMemo, setLogsJourMemo] = useState([])
   const [circuitEnCours, setCircuitEnCours] = useState(null)
   const [circuits, setCircuits] = useState([])
-  const [dragId, setDragId] = useState(null) // id de l'exercice en cours de déplacement
+  const [dragId, setDragId] = useState(null)
+  const [dropId, setDropId] = useState(null)
+  const touchDragRef = { current: null }
 
   // Formulaire ajout
   const [showForm, setShowForm] = useState(false)
@@ -471,12 +473,31 @@ export default function SeanceJour() {
 
           return (
             <div key={exo.id} className="flex flex-col gap-3"
+              data-drag-id={exo.id}
               draggable
-              onDragStart={() => setDragId(exo.id)}
-              onDragEnd={() => setDragId(null)}
+              onDragStart={() => { setDragId(exo.id) }}
+              onDragEnter={() => setDropId(exo.id)}
+              onDragEnd={() => { if (dragId && dropId && dragId !== dropId) deplacerExercice(dragId, dropId); setDragId(null); setDropId(null) }}
               onDragOver={e => e.preventDefault()}
-              onDrop={() => { if (dragId && dragId !== exo.id) deplacerExercice(dragId, exo.id) }}
-              style={{ opacity: dragId === exo.id ? 0.5 : 1, cursor: 'grab' }}>
+              onTouchStart={() => { touchDragRef.current = exo.id; setDragId(exo.id) }}
+              onTouchMove={e => {
+                const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
+                const card = el?.closest('[data-drag-id]')
+                if (card) setDropId(card.getAttribute('data-drag-id'))
+              }}
+              onTouchEnd={() => {
+                if (touchDragRef.current && dropId && String(touchDragRef.current) !== String(dropId)) {
+                  deplacerExercice(touchDragRef.current, dropId)
+                }
+                touchDragRef.current = null; setDragId(null); setDropId(null)
+              }}
+              style={{
+                opacity: dragId === exo.id ? 0.5 : 1,
+                outline: dropId === String(exo.id) && dragId !== exo.id ? '2px solid var(--orange)' : 'none',
+                borderRadius: '12px',
+                cursor: 'grab',
+                touchAction: 'none',
+              }}>
               {cardioEnCours?.id === exo.id && (
                 <FormCardio exo={exo} poidsCorps={poidsCorps}
                   onTerminer={(m) => terminerCardio(exo, m)}
@@ -491,6 +512,9 @@ export default function SeanceJour() {
                       <label className="label">Nom</label>
                       <AutocompleteInput value={editNom} onChange={setEditNom} suggestions={nomsExistants} placeholder="Nom" />
                     </div>
+                    {!isCardio && editNom.trim() && (
+                      <CoachSuggestion nomExercice={editNom} userId={userId} />
+                    )}
                     {!isCardio && (
                       <div className="flex gap-2">
                         <div className="flex-1"><label className="label">Séries</label>
