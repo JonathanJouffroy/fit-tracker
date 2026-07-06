@@ -518,7 +518,11 @@ export default function Profil() {
           <label className="label">Objectif de pas quotidien</label>
           <div className="flex gap-2 flex-wrap">
             {[6000, 8000, 10000, 12000].map(v => (
-              <button key={v} type="button" onClick={() => setObjectifPas(v)}
+              <button key={v} type="button" onClick={async () => {
+                setObjectifPas(v)
+                if (!userId) return
+                await supabase.from('profil').update({ objectif_pas: v }).eq('user_id', userId)
+              }}
                 className="px-3 py-1.5 rounded-lg text-sm font-medium"
                 style={{
                   background: objectifPas === v ? 'var(--orange)' : 'var(--surface-2)',
