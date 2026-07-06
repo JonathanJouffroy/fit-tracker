@@ -14,6 +14,8 @@ import { useToast } from '@/app/components/Toast'
 import { SkeletonExercice } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
 import { calculerCaloriesExercice, calculerCaloriesCardio, ACTIVITES_CARDIO } from '@/lib/calculs'
+import CoachSuggestion from '@/app/components/CoachSuggestion'
+
 
 export default function SeanceJour() {
   const { jour: jourId } = useParams()
@@ -683,6 +685,10 @@ export default function SeanceJour() {
               <AutocompleteInput value={nom} onChange={setNom} suggestions={nomsExistants}
                 placeholder={typeForm === 'cardio' ? 'Ex: Sortie natation matinale' : 'Ex: Squat, Développé couché...'} />
             </div>
+          )}
+
+          {typeForm === 'muscu' && nom.trim() && (
+              <CoachSuggestion nomExercice={nom} userId={userId} />
           )}
 
           {typeForm === 'cardio' ? (
