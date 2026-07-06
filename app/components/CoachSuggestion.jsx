@@ -10,59 +10,59 @@ export default function CoachSuggestion({ nomExercice, userId }) {
   useEffect(() => {
     if (!nomExercice?.trim() || !userId) { setSuggestion(null); return }
 
-    const timer = setTimeout(() => charger(), 500) // debounce 500ms
-    return () => clearTimeout(timer)
-  }, [nomExercice, userId])
+    let annule = false
 
-  async function charger() {
-    setLoading(true)
-    setSuggestion(null)
-    try {
-      const supabase = createClient()
+    const timer = setTimeout(async () => {
+      setLoading(true)
+      setSuggestion(null)
+      try {
+        const supabase = createClient()
 
-      // Récupérer les IDs des exercices avec ce nom
-      const { data: exos } = await supabase
-        .from('exercices').select('id')
-        .eq('user_id', userId).eq('nom', nomExercice.trim())
+        const { data: exos } = await supabase
+          .from('exercices').select('id')
+          .eq('user_id', userId).eq('nom', nomExercice.trim())
 
-      if (!exos?.length) { setLoading(false); return }
-      const ids = exos.map(e => e.id)
+        if (annule || !exos?.length) return
 
-      // Charger les logs de ces exercices
-      const { data: logs } = await supabase
-        .from('seances_log')
-        .select('date_seance, poids_kg, repetitions_faites, exercice_id')
-        .in('exercice_id', ids)
-        .order('date_seance', { ascending: true })
+        const ids = exos.map(e => e.id)
+        const { data: logs } = await supabase
+          .from('seances_log')
+          .select('date_seance, poids_kg, repetitions_faites, exercice_id')
+          .in('exercice_id', ids)
+          .order('date_seance', { ascending: true })
 
-      if (!logs?.length) { setLoading(false); return }
+        if (annule || !logs?.length) return
 
-      // Grouper par session (date) pour analyserProgression
-      const parDate = {}
-      logs.forEach(l => {
-        if (!parDate[l.date_seance]) parDate[l.date_seance] = { poids: [], reps: [] }
-        if (l.poids_kg) parDate[l.date_seance].poids.push(Number(l.poids_kg))
-        if (l.repetitions_faites) parDate[l.date_seance].reps.push(l.repetitions_faites)
-      })
+        const parDate = {}
+        logs.forEach(l => {
+          if (!parDate[l.date_seance]) parDate[l.date_seance] = { poids: [], reps: [] }
+          if (l.poids_kg) parDate[l.date_seance].poids.push(Number(l.poids_kg))
+          if (l.repetitions_faites) parDate[l.date_seance].reps.push(l.repetitions_faites)
+        })
 
-      const sessions = Object.entries(parDate).map(([date, data]) => ({
-        date,
-        poids_max: data.poids.length > 0 ? Math.max(...data.poids) : null,
-        reps_max: data.reps.length > 0 ? Math.max(...data.reps) : null,
-      }))
+        const sessions = Object.entries(parDate).map(([date, data]) => ({
+          date,
+          poids_max: data.poids.length > 0 ? Math.max(...data.poids) : null,
+          reps_max: data.reps.length > 0 ? Math.max(...data.reps) : null,
+        }))
 
-      if (sessions.length === 0) { setLoading(false); return }
+        if (annule || sessions.length === 0) return
 
-      const diagnostic = analyserProgression(sessions)
-      const derniere = sessions[sessions.length - 1]
+        const diagnostic = analyserProgression(sessions)
+        const derniere = sessions[sessions.length - 1]
+        if (!annule) setSuggestion({ diagnostic, derniere })
+      } catch {
+        // Pas de suggestion si erreur
+      } finally {
+        if (!annule) setLoading(false)
+      }
+    }, 500)
 
-      setSuggestion({ diagnostic, derniere })
-    } catch {
-      // Pas de suggestion si erreur
-    } finally {
-      setLoading(false)
+    return () => {
+      annule = true
+      clearTimeout(timer)
     }
-  }
+  }, [nomExercice, userId])
 
   if (!nomExercice?.trim()) return null
 
