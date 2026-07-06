@@ -102,6 +102,7 @@ export async function GET() {
         })
         if (count > 0) {
           parSource[stepSources[i]] = count
+          console.log(`Source ${stepSources[i]}: ${count} pas`)
         }
       })
 
@@ -113,6 +114,8 @@ export async function GET() {
       } else if (Object.keys(parSource).length > 0) {
         totalPas = Math.max(...Object.values(parSource))
       }
+
+      console.log('Total pas final:', totalPas)
     }
 
     return NextResponse.json({
