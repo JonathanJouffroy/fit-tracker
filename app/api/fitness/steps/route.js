@@ -135,15 +135,14 @@ export async function GET() {
         }
       })
 
-      // Utiliser merge_step_deltas si disponible (évite doublons),
-      // sinon prendre la source avec le max de pas
+      // Utiliser merge_step_deltas si disponible (source officielle Google Fit)
+      // Sinon prendre le MAX d'une seule source (pas la somme = évite les doublons)
       const mergeSource = 'derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas'
-      if (parSource[mergeSource]) {
+      if (parSource[mergeSource] && parSource[mergeSource] > 0) {
         totalPas = parSource[mergeSource]
-      } else {
-        totalPas = Math.max(0, ...Object.values(parSource))
+      } else if (Object.keys(parSource).length > 0) {
+        totalPas = Math.max(...Object.values(parSource))
       }
-    }
 
     console.log('Total pas final:', totalPas)
 
