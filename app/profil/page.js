@@ -9,6 +9,7 @@ import CourbeObjectifPoids from '@/app/components/CourbeObjectifPoids'
 import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonJauge, SkeletonGraphique, SkeletonListe } from '@/app/components/Skeleton'
+import ThemeToggle from '@/app/components/ThemeToggle'
 
 function calculerIMC(poids, taille) {
   const tailleM = taille / 100
@@ -48,6 +49,7 @@ export default function Profil() {
   const [caloriesMois, setCaloriesMois] = useState([])    // [{date, consomme, brule}]
   const [loading, setLoading] = useState(true)
   const [editionProfil, setEditionProfil] = useState(false)
+  const [objectifPas, setObjectifPas] = useState(8000)
   const [poidsCible, setPoidsCible] = useState('')
   const [dateCible, setDateCible] = useState('')
   const [objectifPoidsId, setObjectifPoidsId] = useState(null)
@@ -85,6 +87,7 @@ export default function Profil() {
       setAge(profil.age); setSexe(profil.sexe)
       setNiveauActivite(profil.niveau_activite); setObjectif(profil.objectif)
       setProfilId(profil.id)
+      if (profil.objectif_pas) setObjectifPas(profil.objectif_pas)
     }
 
     // Calories consommées aujourd'hui
@@ -236,6 +239,7 @@ export default function Profil() {
     await supabase.from('profil').upsert({
       ...(profilId ? { id: profilId } : {}),
       user_id: userId, age: Number(age), sexe, niveau_activite: niveauActivite, objectif,
+      objectif_pas: Number(objectifPas) || 8000,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     setEditionProfil(false)
@@ -506,6 +510,37 @@ export default function Profil() {
           </div>
         </>
       )}
+
+      {/* Apparence + Objectif de pas */}
+      <div className="card mt-4 flex flex-col gap-4">
+        <ThemeToggle />
+        <div>
+          <label className="label">Objectif de pas quotidien</label>
+          <div className="flex gap-2 flex-wrap">
+            {[6000, 8000, 10000, 12000].map(v => (
+              <button key={v} type="button" onClick={() => setObjectifPas(v)}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium"
+                style={{
+                  background: objectifPas === v ? 'var(--orange)' : 'var(--surface-2)',
+                  color: objectifPas === v ? 'white' : 'var(--text-muted)',
+                }}>
+                {v.toLocaleString('fr-FR')}
+              </button>
+            ))}
+            <input type="number" min="1000" step="500" value={objectifPas}
+              onChange={e => setObjectifPas(Number(e.target.value))}
+              onBlur={async () => {
+                if (!userId) return
+                await supabase.from('profil').update({ objectif_pas: Number(objectifPas) || 8000 })
+                  .eq('user_id', userId)
+              }}
+              className="input w-24 text-sm" />
+          </div>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
+            Modifié automatiquement au clic sur un bouton ou en quittant le champ
+          </p>
+        </div>
+      </div>
 
       {/* Bouton tutoriel */}
       <Link href="/tutoriel">
