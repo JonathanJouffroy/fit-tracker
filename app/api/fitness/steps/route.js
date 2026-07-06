@@ -108,8 +108,12 @@ export async function GET() {
 
       // Utiliser merge_step_deltas en priorité (source officielle Google Fit, dédupliquée)
       // Sinon prendre le MAX d'une seule source (pas la somme = évite les doublons)
+      // Priorité : Garmin → merge_step_deltas → max d'une source
+      const garminSource = 'raw:com.google.step_count.delta:com.garmin.android.apps.connectmobile:health_platform'
       const mergeSource = 'derived:com.google.step_count.delta:com.google.android.gms:merge_step_deltas'
-      if (parSource[mergeSource] && parSource[mergeSource] > 0) {
+      if (parSource[garminSource] && parSource[garminSource] > 0) {
+        totalPas = parSource[garminSource]
+      } else if (parSource[mergeSource] && parSource[mergeSource] > 0) {
         totalPas = parSource[mergeSource]
       } else if (Object.keys(parSource).length > 0) {
         totalPas = Math.max(...Object.values(parSource))
