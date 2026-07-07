@@ -654,7 +654,7 @@ export default function SeanceJour() {
                     {!isCardio && (
                       <div className="flex gap-1 mt-3">
                         {Array.from({ length: Math.max(exo.series, fait) }).map((_, i) => (
-                          <div key={i} className="flex-1 h-1.5 rounded-full"
+                          <div key={i} className={`flex-1 h-1.5 rounded-full ${i === fait - 1 ? 'animate-pop' : ''}`}
                             style={{ background: i < fait ? '#22c55e' : 'var(--surface-2)' }} />
                         ))}
                       </div>
@@ -671,9 +671,13 @@ export default function SeanceJour() {
         })}
 
         {exercices.length === 0 && circuits.length === 0 && (
-          <p className="text-center py-8" style={{ color: 'var(--text-faint)' }}>
-            Aucun exercice ce jour. Jour de repos ou ajoute-en un ci-dessous.
-          </p>
+          <div className="flex flex-col items-center py-10 gap-3 animate-fade-up">
+            <span style={{ fontSize: 48 }}>😴</span>
+            <p className="font-semibold" style={{ color: 'var(--text)' }}>Jour de repos</p>
+            <p className="text-sm text-center" style={{ color: 'var(--text-faint)' }}>
+              Aucun exercice prévu. Profites-en pour récupérer !
+            </p>
+          </div>
         )}
 
         {/* Circuits */}
