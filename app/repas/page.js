@@ -609,7 +609,13 @@ export default function Repas() {
             )
           })}
           {repas.length === 0 && (
-            <p className="text-center py-8" style={{ color: 'var(--text-faint)' }}>Aucun repas ajouté pour aujourd'hui.</p>
+            <div className="flex flex-col items-center py-10 gap-3 animate-fade-up">
+              <span style={{ fontSize: 48 }}>🍽️</span>
+              <p className="font-semibold" style={{ color: 'var(--text)' }}>Aucun repas ajouté</p>
+              <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+                Ajoute ton premier repas ci-dessus
+              </p>
+            </div>
           )}
         </div>
       )}
