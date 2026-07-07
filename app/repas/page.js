@@ -202,6 +202,8 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
     toast(`${suggestion.nom} ajouté ✓`)
     charger()
   }
+
+  async function choisirOption(option) {
     if (!userId) return
     await supabase.from('repas').insert([{
       user_id: userId, nom: option.nom, type: option.type,
