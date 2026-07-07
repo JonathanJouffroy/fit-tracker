@@ -56,6 +56,7 @@ export default function Dashboard() {
 
   const [poidsAujourdhui, setPoidsAujourdhui] = useState(null)
   const [dernierPoids, setDernierPoids] = useState(null)
+  const [prenom, setPrenom] = useState('')
 
   useEffect(() => { charger() }, [])
 
@@ -65,6 +66,9 @@ export default function Dashboard() {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      // Prénom depuis les metadata Google/email
+      const nomComplet = user.user_metadata?.full_name || user.user_metadata?.name || ''
+      setPrenom(nomComplet.split(' ')[0] || '')
 
       const today = aujourdHui()
       const numeroJour = new Date().getDay() === 0 ? 7 : new Date().getDay() // 1=lundi..7=dimanche
@@ -240,7 +244,19 @@ export default function Dashboard() {
         <GoogleFitCallback />
       </Suspense>
 
-      <Header title="Aujourd'hui" subtitle={dateAffichee.charAt(0).toUpperCase() + dateAffichee.slice(1)} />
+      {/* Greeting */}
+      <div className="mb-4 animate-fade-up">
+        <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
+          {(() => {
+            const h = new Date().getHours()
+            const g = h < 12 ? 'Bonjour' : h < 18 ? 'Bon après-midi' : 'Bonsoir'
+            return prenom ? `${g}, ${prenom} 👋` : `${g} 👋`
+          })()}
+        </p>
+        <p className="text-sm capitalize" style={{ color: 'var(--text-muted)' }}>
+          {dateAffichee}
+        </p>
+      </div>
 
       {/* Jauge calories */}
       {caloriesCible && (
@@ -254,7 +270,7 @@ export default function Dashboard() {
 
       {/* Carte séance du jour */}
       <Link href={jourSemaine ? `/seance/${jourSemaine.id}` : '/'}>
-        <div className="card mb-3" style={{
+        <div className="card-elevated mb-3" style={{
           borderLeft: `4px solid ${seanceCompletee ? '#22c55e' : seanceCommencee ? 'var(--orange)' : 'var(--border)'}`
         }}>
           <div className="flex items-center justify-between">
