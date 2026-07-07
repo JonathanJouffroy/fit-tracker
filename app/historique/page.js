@@ -242,7 +242,11 @@ export default function Historique() {
       ) : seancesFiltrees.length === 0 ? (
         <div className="card text-center py-12">
           <p className="text-3xl mb-3">📋</p>
-          <p style={{ color: 'var(--text-muted)' }}>Aucune séance enregistrée.</p>
+          <div className="flex flex-col items-center py-10 gap-3 animate-fade-up">
+            <span style={{ fontSize: 48 }}>📭</span>
+            <p className="font-semibold" style={{ color: 'var(--text)' }}>Aucune séance enregistrée</p>
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>Tes séances apparaîtront ici</p>
+          </div>
           <p className="text-sm mt-1" style={{ color: 'var(--text-faint)' }}>
             Les séances apparaissent ici après avoir complété des séries.
           </p>
