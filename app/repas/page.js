@@ -38,8 +38,8 @@ export default function Repas() {
   const [repasEnEdition, setRepasEnEdition] = useState(null)
   const [dateSelectionnee, setDateSelectionnee] = useState(aujourdHui())
 
-  // Onglet actif : 'catalogue' ou 'suggestions'
-  const [onglet, setOnglet] = useState('catalogue')
+  // Onglet actif : 'repas-types' ou 'frigo'
+  const [onglet, setOnglet] = useState('repas-types')
 
   // Catalogue
   const [type, setType] = useState('petit-dejeuner')
@@ -307,9 +307,8 @@ export default function Repas() {
       {/* Onglets */}
       <div className="flex gap-2 mb-4">
         {[
-          { id: 'catalogue', label: '📋 Catalogue' },
-          { id: 'suggestions', label: '✨ Suggestions' },
-          { id: 'frigo', label: '🧊 Frigo' },
+          { id: 'repas-types', label: '📋 Repas types' },
+          { id: 'frigo', label: '🧊 Frigo IA' },
         ].map(o => (
           <button key={o.id} onClick={() => setOnglet(o.id)}
             className="flex-1 py-2 rounded-xl text-sm font-semibold"
@@ -323,9 +322,43 @@ export default function Repas() {
         ))}
       </div>
 
-      {/* ======== ONGLET CATALOGUE ======== */}
-      {onglet === 'catalogue' && (
+      {/* ======== ONGLET REPAS TYPES (fusion catalogue + suggestions) ======== */}
+      {onglet === 'repas-types' && (
         <>
+          {/* Info objectif + toggle tout afficher */}
+          <div className="flex items-center justify-between mb-3">
+            {profil ? (
+              <div className="flex items-center gap-2">
+                <span>{OBJECTIF_LABELS[profil.objectif]?.icon}</span>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                  {OBJECTIF_LABELS[profil.objectif]?.label}
+                  {caloriesRestantes !== null && (
+                    <span style={{ color: caloriesRestantes < 0 ? '#ef4444' : 'var(--orange)' }}>
+                      {' · '}{caloriesRestantes > 0
+                        ? `${Math.round(caloriesRestantes)} kcal restantes`
+                        : `+${Math.abs(Math.round(caloriesRestantes))} kcal`}
+                    </span>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                Renseigne ton profil pour des suggestions personnalisées
+              </p>
+            )}
+            {profil && (
+              <button onClick={() => setModeLibre(v => !v)}
+                className="text-xs px-2.5 py-1 rounded-full"
+                style={{
+                  background: modeLibre ? 'var(--orange)' : 'var(--surface-2)',
+                  color: modeLibre ? 'white' : 'var(--text-muted)',
+                }}>
+                {modeLibre ? '✓ Tous' : 'Tous'}
+              </button>
+            )}
+          </div>
+
+          {/* Filtre type de repas */}
           <div className="flex gap-2 flex-wrap mb-4">
             {TYPES.map((t) => (
               <button type="button" key={t.value} onClick={() => { setType(t.value); setOptionOuverte(null) }}
@@ -340,25 +373,38 @@ export default function Repas() {
             ))}
           </div>
 
-          {optionsDuType.length > 0 && !modeLibre && (
-            <div className="flex flex-col gap-3 mb-4">
-              {optionsDuType.map((option) => (
-                <CarteOption key={option.id} option={option}
-                  ingredients={ingredientsParOption[option.id] || []}
-                  ouvert={optionOuverte === option.id}
-                  onToggle={() => setOptionOuverte(optionOuverte === option.id ? null : option.id)}
-                  onChoisir={() => choisirOption(option)}
-                  caloriesRestantes={caloriesRestantes}
-                />
-              ))}
-              <button type="button" onClick={() => setModeLibre(true)}
-                className="text-sm underline text-center" style={{ color: 'var(--text-faint)' }}>
-                Aucune de ces options, saisir autre chose
-              </button>
-            </div>
-          )}
+          {/* Liste des repas types (filtrés par objectif sauf si modeLibre) */}
+          {(() => {
+            const optionsFiltrees = modeLibre
+              ? (optionsParType[type] || [])
+              : (optionsParType[type] || []).filter(o =>
+                  !profil || o.objectif_cible === profil.objectif || o.objectif_cible === 'tous'
+                )
+            return optionsFiltrees.length > 0 ? (
+              <div className="flex flex-col gap-3 mb-4">
+                {optionsFiltrees.map((option) => (
+                  <CarteOption key={option.id} option={option}
+                    ingredients={ingredientsParOption[option.id] || []}
+                    ouvert={optionOuverte === option.id}
+                    onToggle={() => setOptionOuverte(optionOuverte === option.id ? null : option.id)}
+                    onChoisir={() => choisirOption(option)}
+                    caloriesRestantes={caloriesRestantes}
+                    afficherObjectif={modeLibre}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-center py-4 text-sm mb-4" style={{ color: 'var(--text-faint)' }}>
+                Aucun repas type pour ce créneau.
+              </p>
+            )
+          })()}
 
-          {(optionsDuType.length === 0 || modeLibre) && (
+          {/* Saisie libre */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+            <p className="text-xs font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>
+              SAISIE LIBRE / SCAN
+            </p>
             <FormulaireSaisieLibre
               nom={nom} setNom={setNom}
               kcalLibre={kcalLibre} setKcalLibre={setKcalLibre}
@@ -368,72 +414,8 @@ export default function Repas() {
               quantiteG={quantiteG} setQuantiteG={setQuantiteG}
               onSubmit={ajouterRepasLibre}
               onScanner={() => setShowScanner(true)}
-              onAnnuler={optionsDuType.length > 0 ? () => setModeLibre(false) : null}
+              onAnnuler={null}
             />
-          )}
-        </>
-      )}
-
-      {/* ======== ONGLET SUGGESTIONS ======== */}
-      {onglet === 'suggestions' && (
-        <>
-          {/* Info objectif */}
-          {profil ? (
-            <div className="card mb-4 py-3 flex items-center gap-3">
-              <span className="text-2xl">{OBJECTIF_LABELS[profil.objectif]?.icon}</span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-                  Objectif : {OBJECTIF_LABELS[profil.objectif]?.label}
-                </p>
-                {caloriesRestantes !== null && (
-                  <p className="text-xs" style={{ color: caloriesRestantes < 0 ? '#ef4444' : 'var(--text-muted)' }}>
-                    {caloriesRestantes > 0
-                      ? `${Math.round(caloriesRestantes)} kcal restantes aujourd'hui`
-                      : `${Math.abs(Math.round(caloriesRestantes))} kcal au-dessus de l'objectif`}
-                  </p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="card mb-4 py-3 text-center">
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                Renseigne ton profil pour des suggestions personnalisées
-              </p>
-            </div>
-          )}
-
-          {/* Filtre type de repas */}
-          <div className="flex gap-2 flex-wrap mb-4">
-            {TYPES.map((t) => (
-              <button key={t.value} onClick={() => { setTypeSuggestion(t.value); setSuggestionOuverte(null) }}
-                className="px-3 py-1.5 rounded-full text-sm font-medium border"
-                style={{
-                  background: typeSuggestion === t.value ? 'var(--orange)' : 'var(--surface)',
-                  color: typeSuggestion === t.value ? 'white' : 'var(--text-muted)',
-                  borderColor: typeSuggestion === t.value ? 'var(--orange)' : 'var(--border)',
-                }}>
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3 mb-4">
-            {suggestionsDuType.length === 0 ? (
-              <p className="text-center py-8" style={{ color: 'var(--text-faint)' }}>
-                Aucune suggestion pour ce type de repas.
-              </p>
-            ) : (
-              suggestionsDuType.map((option) => (
-                <CarteOption key={option.id} option={option}
-                  ingredients={ingredientsParOption[option.id] || []}
-                  ouvert={suggestionOuverte === option.id}
-                  onToggle={() => setSuggestionOuverte(suggestionOuverte === option.id ? null : option.id)}
-                  onChoisir={() => choisirOption(option)}
-                  caloriesRestantes={caloriesRestantes}
-                  afficherObjectif={!profil || profil.objectif === null}
-                />
-              ))
-            )}
           </div>
         </>
       )}
