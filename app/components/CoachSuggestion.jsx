@@ -95,13 +95,19 @@ export default function CoachSuggestion({ nomExercice, userId }) {
       </div>
       {derniere.poids_max && (
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Dernière séance : {derniere.poids_max}kg
+          Dernière séance :{' '}
+          {derniere.poids_max < 0
+            ? `${Math.abs(derniere.poids_max)}kg d'assistance`
+            : `${derniere.poids_max}kg`}
           {derniere.reps_max ? ` × ${derniere.reps_max} reps` : ''}
         </p>
       )}
       {diagnostic.suggestion && (
         <p className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
-          → Suggestion : {diagnostic.suggestion.poids}kg
+          → Suggestion :{' '}
+          {diagnostic.suggestion.poids < 0
+            ? `${Math.abs(diagnostic.suggestion.poids)}kg d'assistance`
+            : `${diagnostic.suggestion.poids}kg`}
           <span className="font-normal ml-1" style={{ color: 'var(--text-faint)' }}>
             ({diagnostic.suggestion.raison})
           </span>
