@@ -36,28 +36,37 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
   }
 ]`
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const apiKey = process.env.GROQ_API_KEY
+    if (!apiKey) {
+      console.error('GROQ_API_KEY manquante')
+      return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
+    }
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'llama-3.3-70b-versatile',
         max_tokens: 1500,
-        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        messages: [
+          { role: 'system', content: 'Tu es un nutritionniste expert. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.' },
+          { role: 'user', content: prompt },
+        ],
       }),
     })
 
     if (!res.ok) {
       const err = await res.text()
-      console.error('Anthropic API error:', err)
-      return NextResponse.json({ error: 'Erreur API' }, { status: 500 })
+      console.error('Groq API error:', res.status, err)
+      return NextResponse.json({ error: 'Erreur API Groq: ' + res.status }, { status: 500 })
     }
 
     const data = await res.json()
-    const texte = data.content?.[0]?.text || ''
+    const texte = data.choices?.[0]?.message?.content || ''
     const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
     return NextResponse.json({ suggestions: json })
   } catch (err) {
