@@ -33,6 +33,7 @@ export default function SeanceJour() {
   const [seriesFaites, setSeriesFaites] = useState({})
   const [poidsSerieEnCours, setPoidsSerieEnCours] = useState({})
   const [repsReelles, setRepsReelles] = useState({})
+  const [modeAssistance, setModeAssistance] = useState({})
   const [nomsExistants, setNomsExistants] = useState([])
   const [idsByNom, setIdsByNom] = useState({})
   const [cardioEnCours, setCardioEnCours] = useState(null)
@@ -331,7 +332,10 @@ export default function SeanceJour() {
   async function terminerSerie(exercice) {
     const fait = (seriesFaites[exercice.id] || 0) + 1
     setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
-    const poidsSerie = parseFloat(poidsSerieEnCours[exercice.id]) || null
+    const poidsRaw = parseFloat(poidsSerieEnCours[exercice.id]) || null
+    const estAssistance = modeAssistance[exercice.id] || false
+    // Poids négatif = assistance (convention : -20 = 20kg d'assistance)
+    const poidsSerie = poidsRaw !== null ? (estAssistance ? -Math.abs(poidsRaw) : poidsRaw) : null
     const repsEffectives = Number(repsReelles[exercice.id]) || exercice.repetitions
     await supabase.from('seances_log').insert([{
       user_id: userId, exercice_id: exercice.id, exercice_nom: exercice.nom,
@@ -594,29 +598,52 @@ export default function SeanceJour() {
                     {isCardio && termine && <p className="text-sm font-semibold mt-3 text-green-500">✓ Séance enregistrée</p>}
 
                     {!isCardio && (
-                      <div className="mt-3 flex items-end gap-2">
-                        <div className="flex-1">
-                          <label className="label">Reps série {fait + 1}</label>
-                          <input type="number" min="1"
-                            value={repsReelles[exo.id] ?? exo.repetitions}
-                            onChange={(e) => setRepsReelles((r) => ({ ...r, [exo.id]: e.target.value }))}
-                            className="input text-sm" />
+                      <div className="mt-3 flex flex-col gap-2">
+                        {/* Toggle assistance */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setModeAssistance(m => ({ ...m, [exo.id]: !m[exo.id] }))}
+                            className="text-xs px-2.5 py-1 rounded-full font-medium transition-all"
+                            style={{
+                              background: modeAssistance[exo.id] ? '#8B5CF6' : 'var(--surface-2)',
+                              color: modeAssistance[exo.id] ? 'white' : 'var(--text-faint)',
+                            }}>
+                            {modeAssistance[exo.id] ? '🤝 Assistance' : '+ Charge'}
+                          </button>
+                          {modeAssistance[exo.id] && (
+                            <p className="text-xs" style={{ color: '#8B5CF6' }}>
+                              Moins d'assistance = progression
+                            </p>
+                          )}
                         </div>
-                        <div className="flex-1">
-                          <label className="label">Poids (kg)</label>
-                          <input type="number" step="0.5" min="0"
-                            value={poidsSerieEnCours[exo.id] || ''}
-                            onChange={(e) => setPoidsSerieEnCours((p) => ({ ...p, [exo.id]: e.target.value }))}
-                            className="input text-sm" placeholder="0" />
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="label">Reps série {fait + 1}</label>
+                            <input type="number" min="1"
+                              value={repsReelles[exo.id] ?? exo.repetitions}
+                              onChange={(e) => setRepsReelles((r) => ({ ...r, [exo.id]: e.target.value }))}
+                              className="input text-sm" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="label">
+                              {modeAssistance[exo.id] ? 'Assistance (kg)' : 'Charge (kg)'}
+                            </label>
+                            <input type="number" step="0.5" min="0"
+                              value={poidsSerieEnCours[exo.id] || ''}
+                              onChange={(e) => setPoidsSerieEnCours((p) => ({ ...p, [exo.id]: e.target.value }))}
+                              className="input text-sm"
+                              placeholder="0"
+                              style={{ borderColor: modeAssistance[exo.id] ? '#8B5CF6' : undefined }} />
+                          </div>
+                          <button onClick={() => terminerSerie(exo)}
+                            className="text-sm py-2 px-4 whitespace-nowrap rounded-xl font-semibold"
+                            style={{
+                              background: termine ? 'var(--surface-2)' : 'var(--orange)',
+                              color: termine ? 'var(--text-muted)' : 'white',
+                            }}>
+                            {termine ? `+ Série ${fait + 1}` : `Série ${fait + 1} ✓`}
+                          </button>
                         </div>
-                        <button onClick={() => terminerSerie(exo)}
-                          className="text-sm py-2 px-4 whitespace-nowrap rounded-xl font-semibold"
-                          style={{
-                            background: termine ? 'var(--surface-2)' : 'var(--orange)',
-                            color: termine ? 'var(--text-muted)' : 'white',
-                          }}>
-                          {termine ? `+ Série ${fait + 1}` : `Série ${fait + 1} ✓`}
-                        </button>
                       </div>
                     )}
                     {!isCardio && termine && (
