@@ -36,6 +36,7 @@ export default function Repas() {
   const [repas, setRepas] = useState([])
   const [loading, setLoading] = useState(true)
   const [repasEnEdition, setRepasEnEdition] = useState(null)
+  const [dateSelectionnee, setDateSelectionnee] = useState(aujourdHui())
 
   // Onglet actif : 'catalogue' ou 'suggestions'
   const [onglet, setOnglet] = useState('catalogue')
@@ -68,7 +69,7 @@ export default function Repas() {
   const [suggestionOuverte, setSuggestionOuverte] = useState(null)
   const [profil, setProfil] = useState(null)
 
-  useEffect(() => { charger() }, [])
+  useEffect(() => { charger() }, [dateSelectionnee])
 
   async function charger() {
     setLoading(true)
@@ -78,10 +79,10 @@ export default function Repas() {
       if (!user) return
       setUserId(user.id)
 
-      // Repas du jour
+      // Repas de la date sélectionnée
       const { data } = await supabase.from('repas')
         .select('*, options_repas(kcal, proteines_g, glucides_g, lipides_g)')
-        .eq('user_id', user.id).eq('date_repas', aujourdHui()).order('created_at')
+        .eq('user_id', user.id).eq('date_repas', dateSelectionnee).order('created_at')
       setRepas(data || [])
 
       // Catalogue complet
@@ -171,7 +172,7 @@ export default function Repas() {
       user_id: userId,
       nom: suggestion.nom,
       type: typeRepasIA,
-      date_repas: aujourdHui(),
+      date_repas: dateSelectionnee,
       kcal_libre: suggestion.kcal,
       proteines_libre: suggestion.proteines,
       glucides_libre: suggestion.glucides,
@@ -185,7 +186,7 @@ export default function Repas() {
     if (!userId) return
     await supabase.from('repas').insert([{
       user_id: userId, nom: option.nom, type: option.type,
-      date_repas: aujourdHui(), option_repas_id: option.id,
+      date_repas: dateSelectionnee, option_repas_id: option.id,
     }])
     setOptionOuverte(null)
     setSuggestionOuverte(null)
@@ -199,7 +200,7 @@ export default function Repas() {
     const ratio = kcalLibre && quantiteG ? Number(quantiteG) / 100 : 1
     await supabase.from('repas').insert([{
       user_id: userId, nom, type,
-      date_repas: aujourdHui(),
+      date_repas: dateSelectionnee,
       kcal_libre: kcalLibre ? Math.round(Number(kcalLibre) * ratio) : null,
       proteines_libre: proteinesLibre ? Math.round(Number(proteinesLibre) * ratio * 10) / 10 : null,
       glucides_libre: glucidesLibre ? Math.round(Number(glucidesLibre) * ratio * 10) / 10 : null,
@@ -252,14 +253,55 @@ export default function Repas() {
     <div>
       {showScanner && <ScannerCodeBarre onResultat={onResultatScan} onFermer={() => setShowScanner(false)} />}
 
-      <div className="flex items-start justify-between mb-0">
-        <Header title="Repas du jour"
-          subtitle={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} />
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <p className="text-2xl font-bold" style={{ color: 'var(--text)' }}>
+            {dateSelectionnee === aujourdHui() ? 'Repas du jour' : 'Repas'}
+          </p>
+          <p className="text-sm capitalize" style={{ color: 'var(--text-muted)' }}>
+            {new Date(dateSelectionnee + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
         <Link href="/nutrition"
           className="text-xs px-3 py-1.5 rounded-full mt-1 font-medium"
           style={{ background: 'var(--surface-2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
           📊 Historique
         </Link>
+      </div>
+
+      {/* Sélecteur de date */}
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={() => {
+          const d = new Date(dateSelectionnee + 'T12:00:00')
+          d.setDate(d.getDate() - 1)
+          setDateSelectionnee(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)
+        }} className="px-3 py-1.5 rounded-xl text-sm"
+          style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>←</button>
+
+        <input type="date" value={dateSelectionnee}
+          max={aujourdHui()}
+          onChange={e => setDateSelectionnee(e.target.value)}
+          className="flex-1 input text-sm text-center" />
+
+        <button onClick={() => {
+          const d = new Date(dateSelectionnee + 'T12:00:00')
+          d.setDate(d.getDate() + 1)
+          const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+          if (next <= aujourdHui()) setDateSelectionnee(next)
+        }} className="px-3 py-1.5 rounded-xl text-sm"
+          style={{
+            background: 'var(--surface-2)',
+            color: dateSelectionnee === aujourdHui() ? 'var(--text-faint)' : 'var(--text)',
+            opacity: dateSelectionnee === aujourdHui() ? 0.4 : 1,
+          }}>→</button>
+
+        {dateSelectionnee !== aujourdHui() && (
+          <button onClick={() => setDateSelectionnee(aujourdHui())}
+            className="text-xs px-2 py-1.5 rounded-xl"
+            style={{ background: 'var(--orange)', color: 'white' }}>
+            Aujourd'hui
+          </button>
+        )}
       </div>
 
       {/* Onglets */}
