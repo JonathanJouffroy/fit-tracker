@@ -142,44 +142,21 @@ export default function Repas() {
 
     const typeLabel = TYPES.find(t => t.value === typeRepasIA)?.label || typeRepasIA
 
-    const prompt = `Tu es un nutritionniste expert. L'utilisateur a les ingrédients suivants dans son frigo : "${ingredients}".
-
-Son objectif est : ${objectifLabel}.
-Type de repas : ${typeLabel}.
-${caloriesRestantes !== null ? `Calories restantes aujourd'hui : ${Math.round(caloriesRestantes)} kcal.` : ''}
-${profil ? `Profil : ${profil.sexe}, ${profil.age} ans, objectif ${profil.objectif}.` : ''}
-
-Propose exactement 3 recettes simples et rapides à faire avec ces ingrédients (tu peux supposer des condiments de base : sel, poivre, huile, ail, oignon). Pour chaque recette, donne une estimation des macros.
-
-Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown :
-[
-  {
-    "nom": "Nom du repas",
-    "description": "Description courte (1 phrase)",
-    "kcal": 450,
-    "proteines": 35,
-    "glucides": 40,
-    "lipides": 12,
-    "temps": "15 min",
-    "ingredients_utilises": ["ingrédient1", "ingrédient2"],
-    "etapes": ["Étape 1", "Étape 2", "Étape 3"]
-  }
-]`
-
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/ia/suggestions-repas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
+          ingredients,
+          objectifLabel,
+          typeLabel,
+          caloriesRestantes,
+          profil: profil ? { sexe: profil.sexe, age: profil.age, objectif: profil.objectif } : null,
         }),
       })
+      if (!res.ok) throw new Error('Erreur serveur')
       const data = await res.json()
-      const texte = data.content?.[0]?.text || ''
-      const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
-      setSuggestionsIA(json)
+      setSuggestionsIA(data.suggestions || [])
     } catch {
       setErreurIA('Impossible de générer des suggestions. Réessaie.')
     } finally {
