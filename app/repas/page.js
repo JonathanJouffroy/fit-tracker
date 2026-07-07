@@ -66,6 +66,7 @@ export default function Repas() {
   const [typeSuggestion, setTypeSuggestion] = useState('petit-dejeuner')
   const [caloriesRestantes, setCaloriesRestantes] = useState(null)
   const [suggestionOuverte, setSuggestionOuverte] = useState(null)
+  const [profil, setProfil] = useState(null)
 
   useEffect(() => { charger() }, [])
 
