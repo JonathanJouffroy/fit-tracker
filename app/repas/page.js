@@ -56,8 +56,12 @@ export default function Repas() {
   const [lipidesLibre, setLipidesLibre] = useState('')
   const [quantiteG, setQuantiteG] = useState('')
 
-  // Suggestions
-  const [profil, setProfil] = useState(null) // profil utilisateur
+  // Suggestions IA frigo
+  const [ingredients, setIngredients] = useState('')
+  const [suggestionsIA, setSuggestionsIA] = useState([])
+  const [loadingIA, setLoadingIA] = useState(false)
+  const [erreurIA, setErreurIA] = useState(null)
+  const [typeRepasIA, setTypeRepasIA] = useState('dejeuner')
   const [suggestions, setSuggestions] = useState([]) // options filtrées par objectif
   const [typeSuggestion, setTypeSuggestion] = useState('petit-dejeuner')
   const [caloriesRestantes, setCaloriesRestantes] = useState(null)
@@ -124,7 +128,80 @@ export default function Repas() {
     }
   }
 
-  async function choisirOption(option) {
+  async function suggererAvecIA() {
+    if (!ingredients.trim()) return
+    setLoadingIA(true)
+    setErreurIA(null)
+    setSuggestionsIA([])
+
+    const objectifLabel = {
+      perte_poids: 'perte de poids (déficit calorique, privilégier les protéines et légumes)',
+      maintien: 'maintien du poids (équilibre macros)',
+      prise_masse: 'prise de masse (surplus calorique, beaucoup de protéines et glucides)',
+    }[profil?.objectif] || 'équilibre alimentaire'
+
+    const typeLabel = TYPES.find(t => t.value === typeRepasIA)?.label || typeRepasIA
+
+    const prompt = `Tu es un nutritionniste expert. L'utilisateur a les ingrédients suivants dans son frigo : "${ingredients}".
+
+Son objectif est : ${objectifLabel}.
+Type de repas : ${typeLabel}.
+${caloriesRestantes !== null ? `Calories restantes aujourd'hui : ${Math.round(caloriesRestantes)} kcal.` : ''}
+${profil ? `Profil : ${profil.sexe}, ${profil.age} ans, objectif ${profil.objectif}.` : ''}
+
+Propose exactement 3 recettes simples et rapides à faire avec ces ingrédients (tu peux supposer des condiments de base : sel, poivre, huile, ail, oignon). Pour chaque recette, donne une estimation des macros.
+
+Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown :
+[
+  {
+    "nom": "Nom du repas",
+    "description": "Description courte (1 phrase)",
+    "kcal": 450,
+    "proteines": 35,
+    "glucides": 40,
+    "lipides": 12,
+    "temps": "15 min",
+    "ingredients_utilises": ["ingrédient1", "ingrédient2"],
+    "etapes": ["Étape 1", "Étape 2", "Étape 3"]
+  }
+]`
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      })
+      const data = await res.json()
+      const texte = data.content?.[0]?.text || ''
+      const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
+      setSuggestionsIA(json)
+    } catch {
+      setErreurIA('Impossible de générer des suggestions. Réessaie.')
+    } finally {
+      setLoadingIA(false)
+    }
+  }
+
+  async function ajouterSuggestionIA(suggestion) {
+    if (!userId) return
+    await supabase.from('repas').insert([{
+      user_id: userId,
+      nom: suggestion.nom,
+      type: typeRepasIA,
+      date_repas: aujourdHui(),
+      kcal_libre: suggestion.kcal,
+      proteines_libre: suggestion.proteines,
+      glucides_libre: suggestion.glucides,
+      lipides_libre: suggestion.lipides,
+    }])
+    toast(`${suggestion.nom} ajouté ✓`)
+    charger()
+  }
     if (!userId) return
     await supabase.from('repas').insert([{
       user_id: userId, nom: option.nom, type: option.type,
@@ -210,6 +287,7 @@ export default function Repas() {
         {[
           { id: 'catalogue', label: '📋 Catalogue' },
           { id: 'suggestions', label: '✨ Suggestions' },
+          { id: 'frigo', label: '🧊 Frigo' },
         ].map(o => (
           <button key={o.id} onClick={() => setOnglet(o.id)}
             className="flex-1 py-2 rounded-xl text-sm font-semibold"
@@ -336,6 +414,144 @@ export default function Repas() {
             )}
           </div>
         </>
+      )}
+
+      {/* ======== ONGLET FRIGO IA ======== */}
+      {onglet === 'frigo' && (
+        <div className="flex flex-col gap-4">
+
+          {/* Contexte objectif */}
+          {caloriesRestantes !== null && (
+            <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
+              style={{ background: 'var(--surface-2)' }}>
+              <span>{OBJECTIF_LABELS[profil?.objectif]?.icon || '🎯'}</span>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {OBJECTIF_LABELS[profil?.objectif]?.label} ·{' '}
+                <span style={{ color: caloriesRestantes < 0 ? '#ef4444' : 'var(--orange)' }}>
+                  {caloriesRestantes > 0
+                    ? `${Math.round(caloriesRestantes)} kcal restantes`
+                    : `${Math.abs(Math.round(caloriesRestantes))} kcal au-dessus`}
+                </span>
+              </p>
+            </div>
+          )}
+
+          {/* Sélecteur type de repas */}
+          <div>
+            <p className="label mb-2">Type de repas</p>
+            <div className="flex gap-2 flex-wrap">
+              {TYPES.map(t => (
+                <button key={t.value} onClick={() => setTypeRepasIA(t.value)}
+                  className="px-3 py-1.5 rounded-full text-sm font-medium border"
+                  style={{
+                    background: typeRepasIA === t.value ? 'var(--orange)' : 'var(--surface)',
+                    color: typeRepasIA === t.value ? 'white' : 'var(--text-muted)',
+                    borderColor: typeRepasIA === t.value ? 'var(--orange)' : 'var(--border)',
+                  }}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Champ ingrédients */}
+          <div>
+            <label className="label">Qu'est-ce que tu as dans ton frigo ?</label>
+            <textarea
+              value={ingredients}
+              onChange={e => setIngredients(e.target.value)}
+              placeholder="Ex: œufs, poulet, riz, tomates, fromage, épinards..."
+              rows={3}
+              className="input resize-none text-sm w-full"
+            />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
+              Tu peux supposer sel, poivre, huile, ail, oignon disponibles.
+            </p>
+          </div>
+
+          {/* Bouton générer */}
+          <button
+            onClick={suggererAvecIA}
+            disabled={!ingredients.trim() || loadingIA}
+            className="btn-primary py-3 font-semibold disabled:opacity-40">
+            {loadingIA ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                Génération en cours...
+              </span>
+            ) : '🤖 Générer des suggestions'}
+          </button>
+
+          {/* Erreur */}
+          {erreurIA && (
+            <p className="text-sm text-center" style={{ color: '#ef4444' }}>{erreurIA}</p>
+          )}
+
+          {/* Suggestions générées */}
+          {suggestionsIA.length > 0 && (
+            <div className="flex flex-col gap-3">
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                3 SUGGESTIONS POUR TOI
+              </p>
+              {suggestionsIA.map((s, i) => (
+                <div key={i} className="card flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{s.nom}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.description}</p>
+                    </div>
+                    {s.temps && (
+                      <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text-faint)' }}>
+                        ⏱ {s.temps}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Macros */}
+                  <div className="flex gap-3">
+                    {[
+                      { label: 'kcal', val: s.kcal, color: 'var(--orange)' },
+                      { label: 'Prot.', val: `${s.proteines}g`, color: 'var(--text)' },
+                      { label: 'Gluc.', val: `${s.glucides}g`, color: 'var(--text)' },
+                      { label: 'Lip.', val: `${s.lipides}g`, color: 'var(--text)' },
+                    ].map(m => (
+                      <div key={m.label} className="text-center">
+                        <p className="text-sm font-bold" style={{ color: m.color }}>{m.val}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{m.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Ingrédients utilisés */}
+                  {s.ingredients_utilises?.length > 0 && (
+                    <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                      🧄 {s.ingredients_utilises.join(', ')}
+                    </p>
+                  )}
+
+                  {/* Étapes */}
+                  {s.etapes?.length > 0 && (
+                    <div className="rounded-xl p-2.5 flex flex-col gap-1"
+                      style={{ background: 'var(--surface-2)' }}>
+                      {s.etapes.map((e, j) => (
+                        <p key={j} className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {j + 1}. {e}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Bouton ajouter */}
+                  <button onClick={() => ajouterSuggestionIA(s)}
+                    className="btn-primary text-sm py-2">
+                    + Ajouter à mes repas
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Totaux macros du jour */}
