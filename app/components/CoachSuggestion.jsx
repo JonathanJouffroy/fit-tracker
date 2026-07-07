@@ -35,15 +35,19 @@ export default function CoachSuggestion({ nomExercice, userId }) {
 
         const parDate = {}
         logs.forEach(l => {
-          if (!parDate[l.date_seance]) parDate[l.date_seance] = { poids: [], reps: [] }
-          if (l.poids_kg) parDate[l.date_seance].poids.push(Number(l.poids_kg))
-          if (l.repetitions_faites) parDate[l.date_seance].reps.push(l.repetitions_faites)
+          if (!parDate[l.date_seance]) parDate[l.date_seance] = []
+          parDate[l.date_seance].push({
+            poids: Number(l.poids_kg) || 0,
+            reps: l.repetitions_faites || 0,
+          })
         })
 
-        const sessions = Object.entries(parDate).map(([date, data]) => ({
+        const sessions = Object.entries(parDate).map(([date, series]) => ({
           date,
-          poids_max: data.poids.length > 0 ? Math.max(...data.poids) : null,
-          reps_max: data.reps.length > 0 ? Math.max(...data.reps) : null,
+          series,
+          // Garder poids_max pour compatibilité avec progressionVersObjectif
+          poids_max: Math.max(...series.map(s => s.poids).filter(p => p > 0), 0) || null,
+          reps_max: Math.max(...series.map(s => s.reps).filter(r => r > 0), 0) || null,
         }))
 
         if (annule || sessions.length === 0) return
