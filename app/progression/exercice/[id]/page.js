@@ -154,11 +154,12 @@ export default function ProgressionExercice() {
         const date = key.split('__')[0]
         const avecPoids = lignes.filter((l) => l.poids_kg && l.poids_kg > 0)
         const poids_max = avecPoids.length > 0 ? Math.max(...avecPoids.map((l) => l.poids_kg)) : null
-        // Reps du set avec le poids le plus lourd (pour le 1RM)
         const setMax = avecPoids.find((l) => l.poids_kg === poids_max)
         const reps_max = setMax?.repetitions_faites || null
         const volume = avecPoids.reduce((acc, l) => acc + l.poids_kg * (l.repetitions_faites || 0), 0)
-        return { date, poids_max, reps_max, volume: Math.round(volume), nb_series: lignes.length }
+        // Séries détaillées pour le coach
+        const series = lignes.map(l => ({ poids: l.poids_kg || 0, reps: l.repetitions_faites || 0 }))
+        return { date, poids_max, reps_max, volume: Math.round(volume), nb_series: lignes.length, series }
       })
 
     setSessions(sessionsCalc)
