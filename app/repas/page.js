@@ -527,11 +527,30 @@ export default function Repas() {
                     ))}
                   </div>
 
-                  {/* Ingrédients utilisés */}
+                  {/* Ingrédients avec quantités */}
                   {s.ingredients_utilises?.length > 0 && (
-                    <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
-                      🧄 {s.ingredients_utilises.join(', ')}
-                    </p>
+                    <div className="rounded-xl p-3 flex flex-col gap-1.5"
+                      style={{ background: 'var(--surface-2)' }}>
+                      <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--text-muted)' }}>
+                        🧄 Ingrédients
+                      </p>
+                      {s.ingredients_utilises.map((ing, j) => {
+                        // Supporter les deux formats : objet { nom, quantite } ou string
+                        const nom = typeof ing === 'string' ? ing : ing.nom
+                        const quantite = typeof ing === 'string' ? null : ing.quantite
+                        return (
+                          <div key={j} className="flex justify-between items-center">
+                            <span className="text-xs" style={{ color: 'var(--text)' }}>{nom}</span>
+                            {quantite && (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                                style={{ background: 'var(--surface)', color: 'var(--orange)' }}>
+                                {quantite}
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
 
                   {/* Étapes */}
