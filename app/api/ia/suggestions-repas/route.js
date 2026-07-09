@@ -19,7 +19,7 @@ Type de repas : ${typeLabel}.
 ${caloriesRestantes !== null ? `Calories restantes aujourd'hui : ${Math.round(caloriesRestantes)} kcal.` : ''}
 ${profil ? `Profil : ${profil.sexe}, ${profil.age} ans, objectif ${profil.objectif}.` : ''}
 
-Propose exactement 3 recettes simples et rapides à faire avec ces ingrédients (tu peux supposer des condiments de base : sel, poivre, huile, ail, oignon). Pour chaque recette, donne une estimation des macros.
+Propose exactement 3 recettes simples et rapides à faire avec ces ingrédients (tu peux supposer des condiments de base : sel, poivre, huile, ail, oignon). Pour chaque recette, donne une estimation précise des macros ET les quantités de chaque ingrédient.
 
 Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown :
 [
@@ -31,7 +31,12 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
     "glucides": 40,
     "lipides": 12,
     "temps": "15 min",
-    "ingredients_utilises": ["ingrédient1", "ingrédient2"],
+    "ingredients_utilises": [
+      { "nom": "Poulet", "quantite": "150g" },
+      { "nom": "Riz", "quantite": "80g cru" },
+      { "nom": "Brocolis", "quantite": "200g" },
+      { "nom": "Huile d'olive", "quantite": "1 c.à.s" }
+    ],
     "etapes": ["Étape 1", "Étape 2", "Étape 3"]
   }
 ]`
