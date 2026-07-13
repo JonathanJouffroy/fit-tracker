@@ -7,25 +7,40 @@ function calculerKcalPas(pas, poidsKg) {
   return Math.round(poidsKg * 0.0005 * pas)
 }
 
-export default function GoogleFitSteps({ poidsCorps, onKcalCalculees }) {
+export default function GoogleFitSteps({ poidsCorps, onKcalCalculees, objectifPasExterne }) {
   const [statut, setStatut] = useState('loading')
   const [pas, setPas] = useState(null)
   const [needsReauth, setNeedsReauth] = useState(false)
   const [historique, setHistorique] = useState([])
-  const [objectifPas, setObjectifPas] = useState(8000)
+  const [objectifPas, setObjectifPas] = useState(objectifPasExterne || 8000)
   const supabase = createClient()
+
+  // Mettre à jour objectifPas si la prop externe change (ex: modifié dans le profil)
+  useEffect(() => {
+    if (objectifPasExterne) setObjectifPas(objectifPasExterne)
+  }, [objectifPasExterne])
 
   useEffect(() => {
     chargerObjectif()
     chargerPas()
     chargerHistorique()
-    function onFocus() { chargerPas() }
+    function onVisible() {
+      if (document.visibilityState === 'visible') {
+        chargerObjectif() // Recharger l'objectif si modifié dans le profil
+        chargerPas()
+      }
+    }
+    function onFocus() {
+      chargerObjectif()
+      chargerPas()
+    }
     window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') chargerPas()
-    })
-    return () => window.removeEventListener('focus', onFocus)
-  }, [])
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [poidsCorps])
 
   async function chargerObjectif() {
     try {
