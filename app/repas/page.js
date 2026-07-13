@@ -112,7 +112,11 @@ export default function Repas() {
           age: profilData.age, sexe: profilData.sexe,
           niveauActivite: profilData.niveau_activite, objectif: profilData.objectif,
         })
-        const caloConso = (data || []).reduce((a, r) => a + (r.options_repas?.kcal || r.kcal_libre || 0), 0)
+        const caloConso = (data || []).reduce((a, r) => {
+          const ratio = r.quantite_g ? r.quantite_g / 100 : 1
+          const kcal = r.options_repas ? (r.options_repas.kcal || 0) * ratio : (r.kcal_libre || 0)
+          return a + kcal
+        }, 0)
         setCaloriesRestantes(caloriesCible - caloConso)
         const filtrees = (options || []).filter(o =>
           o.objectif_cible === profilData.objectif || o.objectif_cible === 'tous'
@@ -242,12 +246,14 @@ export default function Repas() {
   const suggestionsDuType = suggestions.filter(s => s.type === typeSuggestion)
 
   // Totaux macros du jour
-  const totaux = repas.reduce((acc, r) => ({
-    kcal: acc.kcal + (r.options_repas?.kcal || r.kcal_libre || 0),
-    p: acc.p + (r.options_repas?.proteines_g || r.proteines_libre || 0),
-    g: acc.g + (r.options_repas?.glucides_g || r.glucides_libre || 0),
-    l: acc.l + (r.options_repas?.lipides_g || r.lipides_libre || 0),
-  }), { kcal: 0, p: 0, g: 0, l: 0 })
+  const totaux = repas.reduce((acc, r) => {
+    const ratio = r.quantite_g ? r.quantite_g / 100 : 1
+    const kcal = r.options_repas ? (r.options_repas.kcal || 0) * ratio : (r.kcal_libre || 0)
+    const p = r.options_repas ? (r.options_repas.proteines_g || 0) * ratio : (r.proteines_libre || 0)
+    const g = r.options_repas ? (r.options_repas.glucides_g || 0) * ratio : (r.glucides_libre || 0)
+    const l = r.options_repas ? (r.options_repas.lipides_g || 0) * ratio : (r.lipides_libre || 0)
+    return { kcal: acc.kcal + kcal, p: acc.p + p, g: acc.g + g, l: acc.l + l }
+  }, { kcal: 0, p: 0, g: 0, l: 0 })
 
   return (
     <div>
@@ -705,7 +711,10 @@ function CarteOption({ option, ingredients, ouvert, onToggle, onChoisir, calorie
 // -------- Carte repas du jour, avec édition inline --------
 function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer }) {
   const estLibre = !repas.option_repas_id // pas issu du catalogue → modifiable
-  const kcalAffiche = repas.options_repas?.kcal || repas.kcal_libre || 0
+  const ratio = repas.quantite_g ? repas.quantite_g / 100 : 1
+  const kcalAffiche = repas.options_repas
+    ? Math.round((repas.options_repas.kcal || 0) * ratio)
+    : (repas.kcal_libre || 0)
 
   const [nom, setNom] = useState(repas.nom)
   const [kcal, setKcal] = useState(repas.kcal_libre || '')
