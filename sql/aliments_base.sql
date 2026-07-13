@@ -13,7 +13,57 @@ create table if not exists aliments_base (
   categorie text default 'autre' -- viandes, poissons, feculents, legumes, fruits, laitiers, oeufs, legumineuses, corps_gras, autre
 );
 
--- Index pour la recherche par nom
+-- Ajout d'aliments supplémentaires
+insert into aliments_base (nom, kcal_100g, proteines_100g, glucides_100g, lipides_100g, categorie) values
+('Riz basmati cuit',            130, 2.7, 28.0,  0.3,  'feculents'),
+('Riz basmati cru',             350, 7.0, 77.0,  0.6,  'feculents'),
+('Riz jasmin cuit',             129, 2.4, 28.0,  0.3,  'feculents'),
+('Farine de blé',               364, 10.0, 76.0, 1.0,  'feculents'),
+('Pain de mie',                 267, 8.0, 48.0,  4.5,  'feculents'),
+('Tortilla de blé',             306, 8.0, 51.0,  7.0,  'feculents'),
+('Galettes de riz',             385, 7.5, 82.0,  2.0,  'feculents'),
+('Bœuf entrecôte',              280, 22.0, 0.0, 21.0,  'viandes'),
+('Escalope de veau',            105, 20.0, 0.0,  2.5,  'viandes'),
+('Filet de cabillaud',           82, 18.5, 0.0,  0.7,  'poissons'),
+('Maquereau',                   205, 19.0, 0.0, 14.0,  'poissons'),
+('Œufs de caille',              158, 13.0, 0.3, 11.0,  'oeufs'),
+('Tofu ferme',                   76, 8.0,  1.9,  4.5,  'legumineuses'),
+('Tempeh',                      193, 19.0, 9.0, 11.0,  'legumineuses'),
+('Pois cassés cuits',           118, 8.3, 21.0,  0.4,  'legumineuses'),
+('Haricots blancs cuits',       127, 8.7, 23.0,  0.5,  'legumineuses'),
+('Poireau',                      31, 1.8,  6.5,  0.3,  'legumes'),
+('Chou-fleur',                   25, 1.9,  5.0,  0.3,  'legumes'),
+('Chou brocoli',                 34, 2.8,  6.6,  0.4,  'legumes'),
+('Aubergine',                    25, 1.0,  5.7,  0.2,  'legumes'),
+('Asperges',                     20, 2.2,  3.9,  0.1,  'legumes'),
+('Betterave rouge',              43, 1.6,  9.6,  0.1,  'legumes'),
+('Maïs',                        86, 3.2, 19.0,  1.2,  'legumes'),
+('Petits pois',                  81, 5.4, 14.5,  0.4,  'legumes'),
+('Pamplemousse',                 42, 0.8, 10.7,  0.1,  'fruits'),
+('Kiwi',                         61, 1.1, 14.7,  0.5,  'fruits'),
+('Raisin',                       69, 0.6, 18.1,  0.2,  'fruits'),
+('Pastèque',                     30, 0.6,  7.6,  0.2,  'fruits'),
+('Ananas',                       50, 0.5, 13.1,  0.1,  'fruits'),
+('Skyr nature',                  65, 11.0, 4.0,  0.2,  'laitiers'),
+('Fromage blanc 20%',            88, 7.0,  4.5,  4.5,  'laitiers'),
+('Ricotta',                     174, 11.0, 3.0, 13.0,  'laitiers'),
+('Crème fraîche 15%',           162, 3.0,  3.0, 15.0,  'laitiers'),
+('Lait entier',                  61, 3.2,  4.8,  3.5,  'laitiers'),
+('Huile de coco',               892, 0.0,  0.0, 100.0, 'corps_gras'),
+('Huile de tournesol',          884, 0.0,  0.0, 100.0, 'corps_gras'),
+('Noix de cajou',               553, 18.0, 30.0, 44.0, 'corps_gras'),
+('Pistaches',                   562, 20.0, 28.0, 45.0, 'corps_gras'),
+('Graines de lin',              534, 18.0, 29.0, 42.0, 'corps_gras'),
+('Tahini (purée de sésame)',    595, 17.0, 21.0, 53.0, 'corps_gras'),
+('Miel',                        304, 0.3, 82.0,  0.0,  'autre'),
+('Sucre blanc',                 399, 0.0, 100.0, 0.0,  'autre'),
+('Chocolat noir 70%',           598, 7.8, 46.0, 42.0,  'autre'),
+('Sauce soja',                   60, 8.1,  5.6,  0.1,  'autre'),
+('Ketchup',                     101, 1.2, 25.0,  0.1,  'autre'),
+('Mayonnaise',                  680, 1.4,  2.6, 75.0,  'autre'),
+('Carottes râpées',              41, 0.9,  9.6,  0.2,  'legumes'),
+('Épinards surgelés',            23, 2.9,  3.6,  0.4,  'legumes');
+
 create index if not exists idx_aliments_nom on aliments_base using gin(to_tsvector('french', nom));
 
 -- Insertion des aliments courants (valeurs pour 100g)
