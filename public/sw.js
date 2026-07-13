@@ -37,6 +37,9 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
+  // Ignorer les schemes non-http (chrome-extension, data, blob...)
+  if (!url.protocol.startsWith('http')) return
+
   // Ne jamais intercepter les requêtes Supabase ou non-GET
   if (url.hostname.includes('supabase.co')) return
   if (url.hostname.includes('openfoodfacts.org')) return
