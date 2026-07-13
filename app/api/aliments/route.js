@@ -55,9 +55,8 @@ export async function GET(request) {
               source: 'off',
             }))
         }
-      } catch {
-        // OFF indisponible ou timeout — on continue avec les résultats locaux uniquement
-        console.log('Open Food Facts indisponible, résultats locaux uniquement')
+      } catch (e) {
+        console.log('Open Food Facts indisponible:', e.message)
       }
     }
 
