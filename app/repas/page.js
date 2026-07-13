@@ -827,7 +827,7 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
         const res = await fetch(`/api/aliments?q=${encodeURIComponent(val)}`)
         const data = await res.json()
         setSuggestions(data.resultats || [])
-        setShowSuggestions(true)
+        setShowSuggestions((data.resultats || []).length > 0)
       } catch {} finally {
         setLoadingSearch(false)
       }
