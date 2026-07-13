@@ -200,3 +200,7 @@ html.light .card-elevated { box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
 .animate-check    { animation: checkPulse 0.3s ease both; }
 .animate-slide-in { animation: slideInRight 0.2s ease both; }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
