@@ -6,16 +6,20 @@ import { calculerCaloriesExercice } from '@/lib/calculs'
 function bip() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.frequency.value = 880
-    osc.type = 'sine'
-    gain.gain.setValueAtTime(0.3, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.4)
+    function jouerBip(delai) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = 880
+      osc.type = 'sine'
+      gain.gain.setValueAtTime(0.6, ctx.currentTime + delai)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delai + 0.4)
+      osc.start(ctx.currentTime + delai)
+      osc.stop(ctx.currentTime + delai + 0.4)
+    }
+    jouerBip(0)
+    jouerBip(0.5)
   } catch {}
 }
 
