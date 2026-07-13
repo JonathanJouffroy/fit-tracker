@@ -205,7 +205,7 @@ export default function ProgressionExercice() {
   const pr = sessionsAvecPoids.length > 0 ? Math.max(...sessionsAvecPoids.map((s) => s.poids_max)) : null
   const derniere = sessionsAvecPoids[sessionsAvecPoids.length - 1]
   const avantDerniere = sessionsAvecPoids[sessionsAvecPoids.length - 2]
-  const progression = derniere && avantDerniere ? derniere.poids_max - avantDerniere.poids_max : null
+  const progression = derniere && avantDerniere ? Math.round((derniere.poids_max - avantDerniere.poids_max) * 100) / 100 : null
 
   // 1RM estimé via formule d'Epley : poids × (1 + reps/30)
   // On utilise le meilleur set connu (poids max avec le nombre de reps loguées)
@@ -347,7 +347,7 @@ export default function ProgressionExercice() {
                   </div>
                   <div className="text-right">
                     {s.poids_max !== null && (
-                      <p className="text-sm font-semibold" style={{ color: 'var(--orange)' }}>{s.poids_max} kg</p>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--orange)' }}>{Math.round(s.poids_max * 100) / 100} kg</p>
                     )}
                     {s.volume > 0 && (
                       <p className="text-xs" style={{ color: 'var(--text-faint)' }}>vol. {s.volume} kg</p>
