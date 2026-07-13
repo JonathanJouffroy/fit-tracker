@@ -824,10 +824,41 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
     setLoadingSearch(true)
     timerRef.current = setTimeout(async () => {
       try {
+        // 1. Résultats locaux (rapides)
         const res = await fetch(`/api/aliments?q=${encodeURIComponent(val)}`)
         const data = await res.json()
-        setSuggestions(data.resultats || [])
-        setShowSuggestions((data.resultats || []).length > 0)
+        const locaux = data.resultats || []
+        setSuggestions(locaux)
+        setShowSuggestions(locaux.length > 0)
+
+        // 2. Si moins de 3 résultats, compléter avec Open Food Facts
+        if (locaux.length < 3) {
+          try {
+            const offUrl = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(val)}&fields=product_name,nutriments&page_size=5&lc=fr&cc=fr`
+            const offRes = await fetch(offUrl, { signal: AbortSignal.timeout(5000) })
+            if (offRes.ok) {
+              const offData = await offRes.json()
+              const resultatsOFF = (offData.products || [])
+                .filter(p => p.product_name && p.nutriments?.['energy-kcal_100g'])
+                .slice(0, 5 - locaux.length)
+                .map(p => ({
+                  id: `off-${Math.random()}`,
+                  nom: p.product_name,
+                  kcal_100g: Math.round(p.nutriments['energy-kcal_100g'] || 0),
+                  proteines_100g: Math.round((p.nutriments.proteins_100g || 0) * 10) / 10,
+                  glucides_100g: Math.round((p.nutriments.carbohydrates_100g || 0) * 10) / 10,
+                  lipides_100g: Math.round((p.nutriments.fat_100g || 0) * 10) / 10,
+                  source: 'off',
+                }))
+              if (resultatsOFF.length > 0) {
+                setSuggestions([...locaux, ...resultatsOFF])
+                setShowSuggestions(true)
+              }
+            }
+          } catch (e) {
+            console.log('OFF erreur:', e.message)
+          }
+        }
       } catch {} finally {
         setLoadingSearch(false)
       }
