@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
@@ -805,9 +805,45 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
   glucidesLibre, setGlucidesLibre, lipidesLibre, setLipidesLibre, quantiteG, setQuantiteG,
   onSubmit, onScanner, onAnnuler }) {
 
+  const [suggestions, setSuggestions] = useState([])
+  const [loadingSearch, setLoadingSearch] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const timerRef = useRef(null)
+
   const ratio = quantiteG && kcalLibre ? Number(quantiteG) / 100 : 1
   const kcalCalcule = kcalLibre && quantiteG ? Math.round(Number(kcalLibre) * ratio) : null
+  const proteinesCalcule = proteinesLibre && quantiteG ? Math.round(Number(proteinesLibre) * ratio * 10) / 10 : null
+  const glucidesCalcule = glucidesLibre && quantiteG ? Math.round(Number(glucidesLibre) * ratio * 10) / 10 : null
+  const lipidesCalcule = lipidesLibre && quantiteG ? Math.round(Number(lipidesLibre) * ratio * 10) / 10 : null
   const macrosPour100g = kcalLibre || proteinesLibre || glucidesLibre || lipidesLibre
+
+  function onNomChange(val) {
+    setNom(val)
+    clearTimeout(timerRef.current)
+    if (val.length < 2) { setSuggestions([]); setShowSuggestions(false); return }
+    setLoadingSearch(true)
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/aliments?q=${encodeURIComponent(val)}`)
+        const data = await res.json()
+        setSuggestions(data.resultats || [])
+        setShowSuggestions(true)
+      } catch {} finally {
+        setLoadingSearch(false)
+      }
+    }, 400)
+  }
+
+  function choisirAliment(aliment) {
+    setNom(aliment.nom)
+    setKcalLibre(String(aliment.kcal_100g))
+    setProteinesLibre(String(aliment.proteines_100g))
+    setGlucidesLibre(String(aliment.glucides_100g))
+    setLipidesLibre(String(aliment.lipides_100g))
+    if (!quantiteG) setQuantiteG('100')
+    setSuggestions([])
+    setShowSuggestions(false)
+  }
 
   return (
     <form onSubmit={onSubmit} className="card flex flex-col gap-3 mb-6">
@@ -823,9 +859,43 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
         <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
       </div>
 
-      {/* 1. Nom */}
-      <input value={nom} onChange={(e) => setNom(e.target.value)}
-        placeholder="Ex: Poulet riz brocolis" className="input" required />
+      {/* 1. Nom avec autocomplete nutritionnel */}
+      <div className="relative">
+        <div className="flex items-center gap-2">
+          <input value={nom} onChange={(e) => onNomChange(e.target.value)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+            placeholder="Ex: Poulet, Riz, Avocat..." className="input flex-1" required />
+          {loadingSearch && (
+            <div className="w-4 h-4 rounded-full border-2 flex-shrink-0"
+              style={{ borderColor: 'var(--orange)', borderTopColor: 'transparent', animation: 'spin 0.6s linear infinite' }} />
+          )}
+        </div>
+
+        {/* Suggestions */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 rounded-xl shadow-lg overflow-hidden"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            {suggestions.map(s => (
+              <button key={s.id} type="button"
+                onMouseDown={() => choisirAliment(s)}
+                className="w-full text-left px-3 py-2.5 flex items-center justify-between"
+                style={{ borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{s.nom}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                    P: {s.proteines_100g}g · G: {s.glucides_100g}g · L: {s.lipides_100g}g
+                  </p>
+                </div>
+                <div className="text-right flex-shrink-0 ml-2">
+                  <p className="text-sm font-bold" style={{ color: 'var(--orange)' }}>{s.kcal_100g}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-faint)' }}>kcal/100g</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* 2. Macros pour 100g */}
       <div className="flex gap-2">
@@ -851,7 +921,7 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
         </div>
       </div>
 
-      {/* 3. Quantité consommée (seulement si macros pour 100g renseignées) */}
+      {/* 3. Quantité + macros recalculées */}
       {macrosPour100g && (
         <div className="rounded-xl p-3 flex flex-col gap-2" style={{ background: 'var(--surface-2)' }}>
           <div className="flex items-center gap-3">
@@ -868,10 +938,12 @@ function FormulaireSaisieLibre({ nom, setNom, kcalLibre, setKcalLibre, proteines
               </div>
             )}
           </div>
-          {quantiteG && Number(quantiteG) !== 100 && (
-            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
-              Toutes les macros recalculées pour {quantiteG}g
-            </p>
+          {quantiteG && Number(quantiteG) !== 100 && (kcalCalcule || proteinesCalcule) && (
+            <div className="flex gap-3 pt-1">
+              {proteinesCalcule !== null && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>P: {proteinesCalcule}g</span>}
+              {glucidesCalcule !== null && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>G: {glucidesCalcule}g</span>}
+              {lipidesCalcule !== null && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>L: {lipidesCalcule}g</span>}
+            </div>
           )}
         </div>
       )}
