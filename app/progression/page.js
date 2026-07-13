@@ -60,10 +60,12 @@ export default function Progression() {
           if (!parSession[key]) parSession[key] = []
           parSession[key].push(l.poids_kg)
         })
-        const sessions = Object.entries(parSession).map(([, poids]) => Math.max(...poids)).sort()
-        const dernierPoids = sessions[sessions.length - 1] || null
-        const avantDernier = sessions[sessions.length - 2] || null
-        const tendance = dernierPoids && avantDernier ? dernierPoids - avantDernier : null
+        const sessions = Object.entries(parSession)
+          .map(([key, poids]) => ({ date: key.split('__')[0], poids: Math.max(...poids) }))
+          .sort((a, b) => a.date.localeCompare(b.date))
+        const dernierPoids = sessions[sessions.length - 1]?.poids || null
+        const avantDernier = sessions[sessions.length - 2]?.poids || null
+        const tendance = dernierPoids && avantDernier ? Math.round((dernierPoids - avantDernier) * 100) / 100 : null
         return { nom, idRepresentatif, idsAvecCeNom, nbSeances: sessions.length, pr, dernierPoids, tendance, sansLienProg: !idRepresentatif }
       })
 
@@ -114,7 +116,7 @@ export default function Progression() {
                           <span className="text-xs font-bold" style={{
                             color: tendance > 0 ? '#22c55e' : tendance < 0 ? '#ef4444' : 'var(--text-faint)'
                           }}>
-                            {tendance > 0 ? `▲ +${tendance}kg` : tendance < 0 ? `▼ ${tendance}kg` : '→ stable'}
+                          {tendance > 0 ? `▲ +${tendance}kg` : tendance < 0 ? `▼ ${tendance}kg` : '→ stable'}
                           </span>
                         )}
                         {sansLienProg && (
