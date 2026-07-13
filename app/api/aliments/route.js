@@ -13,16 +13,32 @@ export async function GET(request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    const { data: locaux, error: errLocaux } = await supabase
+    // Normaliser : supprimer accents + minuscules pour tolérer "oeuf" → "œuf"
+    const qNorm = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+    // Recherche principale
+    const { data: locaux } = await supabase
       .from('aliments_base')
       .select('*')
       .ilike('nom', `%${q}%`)
       .order('nom')
       .limit(8)
 
-    console.log('Recherche:', q, '| Résultats:', locaux?.length, '| Erreur:', errLocaux?.message)
+    let tous = locaux || []
 
-    const resultats = (locaux || []).map(a => ({
+    // Si peu de résultats, essayer avec version sans accents
+    if (tous.length < 3) {
+      const { data: locauxNorm } = await supabase
+        .from('aliments_base')
+        .select('*')
+        .ilike('nom', `%${qNorm}%`)
+        .order('nom')
+        .limit(8)
+      const ids = new Set(tous.map(a => a.id))
+      ;(locauxNorm || []).forEach(a => { if (!ids.has(a.id)) tous.push(a) })
+    }
+
+    const resultats = tous.map(a => ({
       id: `local-${a.id}`,
       nom: a.nom,
       kcal_100g: a.kcal_100g,
