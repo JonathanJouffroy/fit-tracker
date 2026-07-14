@@ -152,14 +152,17 @@ export default function ProgressionExercice() {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, lignes]) => {
         const date = key.split('__')[0]
-        const avecPoids = lignes.filter((l) => l.poids_kg && l.poids_kg > 0)
+        const avecPoids = lignes.filter((l) => l.poids_kg && l.poids_kg !== 0)
+        const estAssistance = avecPoids.length > 0 && avecPoids.every(l => l.poids_kg < 0)
+
+        // Pour assistance : meilleur = moins négatif = Math.max
+        // Pour charge : meilleur = plus positif = Math.max
         const poids_max = avecPoids.length > 0 ? Math.max(...avecPoids.map((l) => l.poids_kg)) : null
         const setMax = avecPoids.find((l) => l.poids_kg === poids_max)
         const reps_max = setMax?.repetitions_faites || null
-        const volume = avecPoids.reduce((acc, l) => acc + l.poids_kg * (l.repetitions_faites || 0), 0)
-        // Séries détaillées pour le coach
+        const volume = avecPoids.reduce((acc, l) => acc + Math.abs(l.poids_kg) * (l.repetitions_faites || 0), 0)
         const series = lignes.map(l => ({ poids: l.poids_kg || 0, reps: l.repetitions_faites || 0 }))
-        return { date, poids_max, reps_max, volume: Math.round(volume), nb_series: lignes.length, series }
+        return { date, poids_max, reps_max, volume: Math.round(volume), nb_series: lignes.length, series, estAssistance }
       })
 
     setSessions(sessionsCalc)
@@ -202,19 +205,21 @@ export default function ProgressionExercice() {
   )
 
   const sessionsAvecPoids = sessions.filter((s) => s.poids_max !== null)
+  const estAssistance = sessionsAvecPoids.length > 0 && sessionsAvecPoids.every(s => s.estAssistance)
+
+  // PR : pour assistance = moins négatif = max ; pour charge = max positif
   const pr = sessionsAvecPoids.length > 0 ? Math.max(...sessionsAvecPoids.map((s) => s.poids_max)) : null
   const derniere = sessionsAvecPoids[sessionsAvecPoids.length - 1]
   const avantDerniere = sessionsAvecPoids[sessionsAvecPoids.length - 2]
   const progression = derniere && avantDerniere ? Math.round((derniere.poids_max - avantDerniere.poids_max) * 100) / 100 : null
 
-  // 1RM estimé via formule d'Epley : poids × (1 + reps/30)
-  // On utilise le meilleur set connu (poids max avec le nombre de reps loguées)
+  // 1RM estimé via formule d'Epley sur la valeur absolue du poids
   const rm1Estime = (() => {
     if (!sessions.length) return null
     let meilleur = 0
     sessions.forEach((s) => {
       if (!s.poids_max || !s.reps_max) return
-      const rm = s.poids_max * (1 + s.reps_max / 30)
+      const rm = Math.abs(s.poids_max) * (1 + s.reps_max / 30)
       if (rm > meilleur) meilleur = rm
     })
     return meilleur > 0 ? Math.round(meilleur) : null
@@ -246,20 +251,30 @@ export default function ProgressionExercice() {
           {/* Stats */}
           <div className="grid grid-cols-2 gap-2 mb-4">
             <div className="card text-center py-3">
-              <p className="text-xl font-bold" style={{ color: 'var(--orange)' }}>{pr ? `${pr}kg` : '—'}</p>
+              <p className="text-xl font-bold" style={{ color: estAssistance ? '#8B5CF6' : 'var(--orange)' }}>
+                {pr !== null ? (estAssistance ? `${Math.abs(pr)}kg assist.` : `${pr}kg`) : '—'}
+              </p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Record (PR)</p>
             </div>
             <div className="card text-center py-3">
               <p className="text-xl font-bold" style={{ color: '#8B5CF6' }}>{rm1Estime ? `${rm1Estime}kg` : '—'}</p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>1RM estimé</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {estAssistance ? '1RM estimé (poids corps)' : '1RM estimé'}
+              </p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 mb-6">
             <div className="card text-center py-3">
               <p className="text-xl font-bold" style={{
-                color: progression === null ? 'var(--text-faint)' : progression >= 0 ? '#22c55e' : '#ef4444'
+                color: progression === null ? 'var(--text-faint)'
+                  : estAssistance
+                    ? (progression > 0 ? '#22c55e' : progression < 0 ? '#ef4444' : 'var(--text-faint)')
+                    : (progression >= 0 ? '#22c55e' : '#ef4444')
               }}>
-                {progression === null ? '—' : `${progression >= 0 ? '+' : ''}${progression}kg`}
+                {progression === null ? '—'
+                  : estAssistance
+                    ? (progression > 0 ? `-${progression}kg assist.` : progression < 0 ? `+${Math.abs(progression)}kg assist.` : 'stable')
+                    : `${progression >= 0 ? '+' : ''}${progression}kg`}
               </p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Évolution</p>
             </div>
@@ -347,7 +362,11 @@ export default function ProgressionExercice() {
                   </div>
                   <div className="text-right">
                     {s.poids_max !== null && (
-                      <p className="text-sm font-semibold" style={{ color: 'var(--orange)' }}>{Math.round(s.poids_max * 100) / 100} kg</p>
+                      <p className="text-sm font-semibold" style={{ color: s.estAssistance ? '#8B5CF6' : 'var(--orange)' }}>
+                        {s.estAssistance
+                          ? `${Math.abs(Math.round(s.poids_max * 100) / 100)}kg assist.`
+                          : `${Math.round(s.poids_max * 100) / 100} kg`}
+                      </p>
                     )}
                     {s.volume > 0 && (
                       <p className="text-xs" style={{ color: 'var(--text-faint)' }}>vol. {s.volume} kg</p>
