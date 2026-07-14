@@ -109,7 +109,7 @@ export default function CoachExercice({ sessions, nomExercice, userId, supabase,
             style={{ borderTop: '1px solid var(--border)' }}>
             <div>
               <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                CHARGE RECOMMANDÉE
+                {analyse.suggestion.reps ? 'CHARGE & REPS' : 'CHARGE RECOMMANDÉE'}
               </p>
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
                 {analyse.suggestion.raison}
@@ -117,8 +117,15 @@ export default function CoachExercice({ sessions, nomExercice, userId, supabase,
             </div>
             <div className="text-right">
               <p className="text-2xl font-bold" style={{ color: analyse.couleur }}>
-                {analyse.suggestion.poids}kg
+                {analyse.suggestion.poids < 0
+                  ? `${Math.abs(analyse.suggestion.poids)}kg assist.`
+                  : `${analyse.suggestion.poids}kg`}
               </p>
+              {analyse.suggestion.reps && (
+                <p className="text-sm font-semibold" style={{ color: 'var(--orange)' }}>
+                  × {analyse.suggestion.reps} reps
+                </p>
+              )}
             </div>
           </div>
         )}
