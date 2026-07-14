@@ -27,7 +27,7 @@ export default function Progression() {
       const { data: logs } = await supabase
         .from('seances_log')
         .select('exercice_id, exercice_nom, date_seance, poids_kg, repetitions_faites')
-        .eq('user_id', user.id).not('poids_kg', 'is', null).gt('poids_kg', 0)
+        .eq('user_id', user.id).not('poids_kg', 'is', null).neq('poids_kg', 0)
         .order('date_seance', { ascending: true })
 
       if (!exos) return
@@ -52,8 +52,16 @@ export default function Progression() {
         const idsAvecCeNom = idsByNom[nom] || []
         const idRepresentatif = idsAvecCeNom[0] || null
         const logsNom = logsParNom[nom] || []
-        if (logsNom.length === 0) return { nom, idRepresentatif, idsAvecCeNom, nbSeances: 0, pr: null, dernierPoids: null, tendance: null }
-        const pr = Math.max(...logsNom.map((l) => l.poids_kg))
+        if (logsNom.length === 0) return { nom, idRepresentatif, idsAvecCeNom, nbSeances: 0, pr: null, dernierPoids: null, tendance: null, estAssistance: false }
+
+        // Détecter si c'est un exercice en mode assistance (majorité de poids négatifs)
+        const estAssistance = logsNom.filter(l => l.poids_kg < 0).length > logsNom.length / 2
+
+        // PR : pour la charge = max positif, pour l'assistance = moins d'assistance = max (moins négatif)
+        const pr = estAssistance
+          ? Math.max(...logsNom.map(l => l.poids_kg)) // ex: max(-20, -15) = -15 = moins d'assistance = mieux
+          : Math.max(...logsNom.map(l => l.poids_kg))
+
         const parSession = {}
         logsNom.forEach((l) => {
           const key = `${l.date_seance}__${l.exercice_id}`
@@ -61,12 +69,16 @@ export default function Progression() {
           parSession[key].push(l.poids_kg)
         })
         const sessions = Object.entries(parSession)
-          .map(([key, poids]) => ({ date: key.split('__')[0], poids: Math.max(...poids) }))
+          .map(([key, poids]) => ({
+            date: key.split('__')[0],
+            // Pour assistance : max = moins négatif = meilleure perf
+            poids: estAssistance ? Math.max(...poids) : Math.max(...poids)
+          }))
           .sort((a, b) => a.date.localeCompare(b.date))
         const dernierPoids = sessions[sessions.length - 1]?.poids || null
         const avantDernier = sessions[sessions.length - 2]?.poids || null
         const tendance = dernierPoids && avantDernier ? Math.round((dernierPoids - avantDernier) * 100) / 100 : null
-        return { nom, idRepresentatif, idsAvecCeNom, nbSeances: sessions.length, pr, dernierPoids, tendance, sansLienProg: !idRepresentatif }
+        return { nom, idRepresentatif, idsAvecCeNom, nbSeances: sessions.length, pr, dernierPoids, tendance, estAssistance, sansLienProg: !idRepresentatif }
       })
 
       setExercices(resultats)
@@ -102,23 +114,40 @@ export default function Progression() {
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>
                 Avec données ({avecDonnees.length} exercice{avecDonnees.length > 1 ? 's' : ''})
               </p>
-              {avecDonnees.map(({ nom, idRepresentatif, idsAvecCeNom, nbSeances, pr, dernierPoids, tendance, sansLienProg }) => {
+              {avecDonnees.map(({ nom, idRepresentatif, idsAvecCeNom, nbSeances, pr, dernierPoids, tendance, estAssistance, sansLienProg }) => {
                 const lien = idRepresentatif
                   ? `/progression/exercice/${idRepresentatif}?nom=${encodeURIComponent(nom)}`
                   : null
+
+                // Affichage adapté pour l'assistance
+                const afficherPoids = (p) => p === null ? '—'
+                  : estAssistance ? `${Math.abs(p)}kg assist.`
+                  : `${p}kg`
+
+                // Tendance : pour assistance, progresser = tendance positive (moins négatif)
+                const afficherTendance = () => {
+                  if (tendance === null) return null
+                  if (estAssistance) {
+                    // Pour assistance : tendance > 0 = moins d'assistance = progression
+                    if (tendance > 0) return <span className="text-xs font-bold" style={{ color: '#22c55e' }}>▲ -{tendance}kg assist.</span>
+                    if (tendance < 0) return <span className="text-xs font-bold" style={{ color: '#ef4444' }}>▼ +{Math.abs(tendance)}kg assist.</span>
+                    return <span className="text-xs" style={{ color: 'var(--text-faint)' }}>→ stable</span>
+                  }
+                  return (
+                    <span className="text-xs font-bold" style={{
+                      color: tendance > 0 ? '#22c55e' : tendance < 0 ? '#ef4444' : 'var(--text-faint)'
+                    }}>
+                      {tendance > 0 ? `▲ +${tendance}kg` : tendance < 0 ? `▼ ${tendance}kg` : '→ stable'}
+                    </span>
+                  )
+                }
 
                 const contenu = (
                   <div className="card flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold" style={{ color: 'var(--text)' }}>{nom}</p>
-                        {tendance !== null && (
-                          <span className="text-xs font-bold" style={{
-                            color: tendance > 0 ? '#22c55e' : tendance < 0 ? '#ef4444' : 'var(--text-faint)'
-                          }}>
-                          {tendance > 0 ? `▲ +${tendance}kg` : tendance < 0 ? `▼ ${tendance}kg` : '→ stable'}
-                          </span>
-                        )}
+                        {afficherTendance()}
                         {sansLienProg && (
                           <span className="text-xs" style={{ color: 'var(--text-faint)' }}>(renommé)</span>
                         )}
@@ -126,11 +155,14 @@ export default function Progression() {
                       <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                         {nbSeances} séance{nbSeances > 1 ? 's' : ''}
                         {idsAvecCeNom.length > 1 && ` · ${idsAvecCeNom.length} jours`}
+                        {estAssistance && <span style={{ color: '#8B5CF6' }}> · 🤝 assistance</span>}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold" style={{ color: 'var(--orange)' }}>{dernierPoids}kg</p>
-                      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>PR : {pr}kg</p>
+                      <p className="text-lg font-bold" style={{ color: estAssistance ? '#8B5CF6' : 'var(--orange)' }}>
+                        {afficherPoids(dernierPoids)}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>PR : {afficherPoids(pr)}</p>
                     </div>
                   </div>
                 )
