@@ -108,6 +108,9 @@ export default function CoachSuggestion({ nomExercice, userId }) {
           {diagnostic.suggestion.poids < 0
             ? `${Math.abs(diagnostic.suggestion.poids)}kg d'assistance`
             : `${diagnostic.suggestion.poids}kg`}
+          {diagnostic.suggestion.reps && (
+            <span style={{ color: 'var(--orange)' }}> × {diagnostic.suggestion.reps} reps</span>
+          )}
           <span className="font-normal ml-1" style={{ color: 'var(--text-faint)' }}>
             ({diagnostic.suggestion.raison})
           </span>
