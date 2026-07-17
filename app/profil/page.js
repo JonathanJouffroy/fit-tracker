@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
@@ -50,6 +50,10 @@ export default function Profil() {
   const [loading, setLoading] = useState(true)
   const [editionProfil, setEditionProfil] = useState(false)
   const [objectifPas, setObjectifPas] = useState(8000)
+  const [douleurs, setDouleurs] = useState([])
+  const [analyseDouleurs, setAnalyseDouleurs] = useState(null)
+  const [loadingAnalyse, setLoadingAnalyse] = useState(false)
+  const [showToutesDouleurs, setShowToutesDouleurs] = useState(false)
   const [poidsCible, setPoidsCible] = useState('')
   const [dateCible, setDateCible] = useState('')
   const [objectifPoidsId, setObjectifPoidsId] = useState(null)
@@ -204,10 +208,39 @@ export default function Profil() {
       setObjectifPoidsId(objPoids.id)
     }
 
+    // ---- Douleurs (30 derniers jours) ----
+    const il_y_a_30j = new Date()
+    il_y_a_30j.setDate(il_y_a_30j.getDate() - 30)
+    const { data: douleurData } = await supabase.from('douleurs')
+      .select('*').eq('user_id', user.id)
+      .gte('date_seance', il_y_a_30j.toISOString().split('T')[0])
+      .order('date_seance', { ascending: false })
+    setDouleurs(douleurData || [])
+
     setLoading(false)
   }
 
-  async function enregistrerObjectifPoids(e) {
+  async function analyserDouleurs() {
+    if (!douleurs.length) return
+    setLoadingAnalyse(true)
+    try {
+      const res = await fetch('/api/ia/analyse-douleurs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ douleurs }),
+      })
+      const data = await res.json()
+      setAnalyseDouleurs(data.analyse)
+    } catch {} finally {
+      setLoadingAnalyse(false)
+    }
+  }
+
+  async function supprimerDouleur(id) {
+    await supabase.from('douleurs').delete().eq('id', id)
+    setDouleurs(prev => prev.filter(d => d.id !== id))
+    setAnalyseDouleurs(null)
+  }
     e.preventDefault()
     if (!poidsCible || !dateCible || !userId) return
     await supabase.from('objectif_poids').upsert({
@@ -544,6 +577,115 @@ export default function Profil() {
             Modifié automatiquement au clic sur un bouton ou en quittant le champ
           </p>
         </div>
+      </div>
+
+      {/* Section Blessures */}
+      <div className="card mt-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🤕</span>
+            <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+              Suivi des douleurs
+            </p>
+          </div>
+          <span className="text-xs px-2 py-1 rounded-full"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-faint)' }}>
+            30 derniers jours
+          </span>
+        </div>
+
+        {douleurs.length === 0 ? (
+          <p className="text-sm text-center py-4" style={{ color: 'var(--text-faint)' }}>
+            Aucune douleur notée 🎉
+          </p>
+        ) : (
+          <>
+            {/* Résumé par zone */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {Object.entries(
+                douleurs.reduce((acc, d) => {
+                  acc[d.zone] = (acc[d.zone] || 0) + 1
+                  return acc
+                }, {})
+              ).map(([zone, count]) => {
+                const ZONES_FR = { epaule: '💪 Épaule', coude: '🦾 Coude', poignet: '🤲 Poignet', dos_haut: '🔝 Dos haut', dos_bas: '⬇️ Dos bas', hanche: '🦵 Hanche', genou: '🦿 Genou', cheville: '🦶 Cheville', autre: '📍 Autre' }
+                const hasFort = douleurs.some(d => d.zone === zone && d.intensite === 'forte')
+                return (
+                  <span key={zone} className="text-xs px-2.5 py-1 rounded-full font-medium"
+                    style={{ background: hasFort ? '#fee2e2' : 'var(--surface-2)', color: hasFort ? '#ef4444' : 'var(--text-muted)' }}>
+                    {ZONES_FR[zone] || zone} ×{count}
+                  </span>
+                )
+              })}
+            </div>
+
+            {/* Liste des douleurs */}
+            <div className="flex flex-col gap-2 mb-3">
+              {(showToutesDouleurs ? douleurs : douleurs.slice(0, 3)).map(d => {
+                const ZONES_FR = { epaule: 'Épaule', coude: 'Coude', poignet: 'Poignet', dos_haut: 'Dos haut', dos_bas: 'Dos bas', hanche: 'Hanche', genou: 'Genou', cheville: 'Cheville', autre: 'Autre' }
+                const COULEURS = { legere: '#f59e0b', moderee: '#f97316', forte: '#ef4444' }
+                return (
+                  <div key={d.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl"
+                    style={{ background: 'var(--surface-2)' }}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold" style={{ color: COULEURS[d.intensite] }}>
+                          {d.intensite === 'legere' ? '😐' : d.intensite === 'moderee' ? '😬' : '😣'}
+                          {' '}{ZONES_FR[d.zone] || d.zone}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                          {new Date(d.date_seance + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                      {d.note && <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>{d.note}</p>}
+                    </div>
+                    <button onClick={() => supprimerDouleur(d.id)}
+                      className="text-xs" style={{ color: 'var(--text-faint)' }}>✕</button>
+                  </div>
+                )
+              })}
+              {douleurs.length > 3 && (
+                <button onClick={() => setShowToutesDouleurs(v => !v)}
+                  className="text-xs text-center underline" style={{ color: 'var(--text-faint)' }}>
+                  {showToutesDouleurs ? 'Voir moins' : `Voir les ${douleurs.length - 3} autres`}
+                </button>
+              )}
+            </div>
+
+            {/* Analyse IA */}
+            {!analyseDouleurs ? (
+              <button onClick={analyserDouleurs} disabled={loadingAnalyse}
+                className="w-full py-2.5 rounded-xl text-sm font-medium disabled:opacity-40"
+                style={{ background: 'var(--surface-2)', color: 'var(--orange)' }}>
+                {loadingAnalyse ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-3 h-3 rounded-full border-2 border-orange-500 border-t-transparent animate-spin" />
+                    Analyse en cours...
+                  </span>
+                ) : '🤖 Analyser les patterns avec l\'IA'}
+              </button>
+            ) : (
+              <div className="rounded-xl p-3 flex flex-col gap-2"
+                style={{ background: 'var(--surface-2)', borderLeft: `3px solid ${analyseDouleurs.niveau_alerte === 'eleve' ? '#ef4444' : analyseDouleurs.niveau_alerte === 'modere' ? '#f97316' : '#22c55e'}` }}>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+                  {analyseDouleurs.niveau_alerte === 'eleve' ? '🚨' : analyseDouleurs.niveau_alerte === 'modere' ? '⚠️' : '✅'} Analyse IA
+                </p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{analyseDouleurs.message}</p>
+                {analyseDouleurs.recommandations?.length > 0 && (
+                  <div className="flex flex-col gap-1 mt-1">
+                    {analyseDouleurs.recommandations.map((r, i) => (
+                      <p key={i} className="text-xs" style={{ color: 'var(--text-muted)' }}>→ {r}</p>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setAnalyseDouleurs(null)}
+                  className="text-xs underline mt-1 text-left" style={{ color: 'var(--text-faint)' }}>
+                  Effacer l'analyse
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Bouton tutoriel */}
