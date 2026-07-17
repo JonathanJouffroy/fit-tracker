@@ -241,6 +241,8 @@ export default function Profil() {
     setDouleurs(prev => prev.filter(d => d.id !== id))
     setAnalyseDouleurs(null)
   }
+
+  async function enregistrerObjectifPoids(e) {
     e.preventDefault()
     if (!poidsCible || !dateCible || !userId) return
     await supabase.from('objectif_poids').upsert({
