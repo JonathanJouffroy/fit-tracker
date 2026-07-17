@@ -20,7 +20,29 @@ export default function TimerSeance({ jourId }) {
   const [seanceDureeId, setSeanceDureeId] = useState(null)
   const [noteSauvegardee, setNoteSauvegardee] = useState(false)
 
-  // Au montage : vérifier si une séance est déjà en cours aujourd'hui
+  const [showBilan, setShowBilan] = useState(false)
+  const [bilanEtape, setBilanEtape] = useState('choix') // 'choix' | 'douleur' | 'note'
+  const [bilanZone, setBilanZone] = useState('')
+  const [bilanIntensite, setBilanIntensite] = useState('')
+  const [bilanNote, setBilanNote] = useState('')
+
+  const ZONES = [
+    { value: 'epaule', label: '💪 Épaule' },
+    { value: 'coude', label: '🦾 Coude' },
+    { value: 'poignet', label: '🤲 Poignet' },
+    { value: 'dos_haut', label: '🔝 Dos (haut)' },
+    { value: 'dos_bas', label: '⬇️ Dos (bas)' },
+    { value: 'hanche', label: '🦵 Hanche' },
+    { value: 'genou', label: '🦿 Genou' },
+    { value: 'cheville', label: '🦶 Cheville' },
+    { value: 'autre', label: '📍 Autre' },
+  ]
+
+  const INTENSITES = [
+    { value: 'legere', label: '😐 Légère', color: '#f59e0b' },
+    { value: 'moderee', label: '😬 Modérée', color: '#f97316' },
+    { value: 'forte', label: '😣 Forte', color: '#ef4444' },
+  ]
   useEffect(() => {
     const stored = localStorage.getItem(cleStorage(jourId))
     if (!stored) return
@@ -112,13 +134,8 @@ export default function TimerSeance({ jourId }) {
   }
 
   async function terminer() {
-    const dureeAffichee = formaterDuree(secondes)
-    if (!confirm(`Terminer la séance ? Durée : ${dureeAffichee}`)) return
-
     clearInterval(intervalRef.current)
     setStatut('done')
-
-    // Marquer comme terminé dans localStorage
     const stored = localStorage.getItem(cleStorage(jourId))
     if (stored) {
       try {
@@ -127,8 +144,7 @@ export default function TimerSeance({ jourId }) {
         localStorage.setItem(cleStorage(jourId), JSON.stringify(data))
       } catch {}
     }
-
-    // Sauvegarder dans Supabase
+    // Sauvegarder la durée
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data } = await supabase.from('seances_duree').insert([{
@@ -140,7 +156,33 @@ export default function TimerSeance({ jourId }) {
       }]).select().single()
       setSeanceDureeId(data?.id || null)
     }
-    setShowNote(true)
+    // Ouvrir le bilan
+    setBilanEtape('choix')
+    setShowBilan(true)
+  }
+
+  async function validerBilan(avecDouleur) {
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Sauvegarder la douleur si renseignée
+    if (avecDouleur && bilanZone && bilanIntensite && user) {
+      await supabase.from('douleurs').insert([{
+        user_id: user.id,
+        seance_duree_id: seanceDureeId,
+        date_seance: new Date().toISOString().split('T')[0],
+        zone: bilanZone,
+        intensite: bilanIntensite,
+        note: bilanNote.trim() || null,
+      }])
+    }
+
+    // Sauvegarder la note de séance si renseignée
+    if (bilanNote.trim() && seanceDureeId && !avecDouleur) {
+      await supabase.from('seances_duree').update({ note: bilanNote.trim() }).eq('id', seanceDureeId)
+      setNoteSauvegardee(true)
+    }
+
+    setShowBilan(false)
   }
 
   async function sauvegarderNote() {
@@ -193,6 +235,91 @@ export default function TimerSeance({ jourId }) {
         style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
         <span>⏱️</span> Démarrer la séance
       </button>
+    )
+  }
+
+  // ---- Bilan de fin de séance ----
+  if (showBilan) {
+    return (
+      <div className="card mb-4 flex flex-col gap-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🏁</span>
+          <div>
+            <p className="font-semibold" style={{ color: 'var(--text)' }}>Séance terminée !</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{formaterDuree(secondes)}</p>
+          </div>
+        </div>
+
+        {bilanEtape === 'choix' && (
+          <>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Comment tu te sens ?</p>
+            <div className="flex gap-2">
+              <button onClick={() => validerBilan(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ background: '#dcfce7', color: '#16a34a' }}>
+                ✅ Tout va bien
+              </button>
+              <button onClick={() => setBilanEtape('douleur')}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ background: '#fee2e2', color: '#ef4444' }}>
+                🤕 J'ai une gêne
+              </button>
+            </div>
+          </>
+        )}
+
+        {bilanEtape === 'douleur' && (
+          <>
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Quelle zone ?</p>
+            <div className="flex flex-wrap gap-2">
+              {ZONES.map(z => (
+                <button key={z.value} onClick={() => setBilanZone(z.value)}
+                  className="px-3 py-1.5 rounded-full text-sm"
+                  style={{
+                    background: bilanZone === z.value ? 'var(--orange)' : 'var(--surface-2)',
+                    color: bilanZone === z.value ? 'white' : 'var(--text-muted)',
+                  }}>
+                  {z.label}
+                </button>
+              ))}
+            </div>
+
+            <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Intensité</p>
+            <div className="flex gap-2">
+              {INTENSITES.map(i => (
+                <button key={i.value} onClick={() => setBilanIntensite(i.value)}
+                  className="flex-1 py-2 rounded-xl text-sm font-medium"
+                  style={{
+                    background: bilanIntensite === i.value ? i.color : 'var(--surface-2)',
+                    color: bilanIntensite === i.value ? 'white' : 'var(--text-muted)',
+                  }}>
+                  {i.label}
+                </button>
+              ))}
+            </div>
+
+            <div>
+              <label className="label">Note (optionnel)</label>
+              <textarea value={bilanNote} onChange={e => setBilanNote(e.target.value)}
+                placeholder="Ex: douleur surtout en descente, genou gauche..."
+                rows={2} className="input resize-none text-sm w-full" />
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={() => setBilanEtape('choix')}
+                className="flex-1 py-2 rounded-xl text-sm"
+                style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+                ← Retour
+              </button>
+              <button onClick={() => validerBilan(true)}
+                disabled={!bilanZone || !bilanIntensite}
+                className="flex-[2] btn-primary text-sm py-2 disabled:opacity-40">
+                Enregistrer
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     )
   }
 
