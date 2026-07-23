@@ -305,12 +305,14 @@ export default function SeanceJour() {
   }
 
   async function supprimerExercice(id, nomExo) {
-    if (!confirm(`Supprimer "${nomExo}" ? Cette action est irréversible.`)) return
-    await supabase.from('exercices').delete().eq('id', id)
+    if (!confirm(`Retirer "${nomExo}" de cette séance ?\n\nL'exercice et son historique de progression seront conservés.`)) return
+    // Délier l'exercice du jour (jour_id = null) au lieu de le supprimer
+    // Cela conserve les logs dans seances_log pour la page Progrès
+    await supabase.from('exercices').update({ jour_id: null }).eq('id', id)
     setSeriesFaites((s) => { const n = { ...s }; delete n[id]; return n })
     setPoidsSerieEnCours((s) => { const n = { ...s }; delete n[id]; return n })
     setRepsReelles((s) => { const n = { ...s }; delete n[id]; return n })
-    toast(`${nomExo} supprimé`)
+    toast(`${nomExo} retiré de la séance`)
     rechargerExercices(userId)
   }
 
