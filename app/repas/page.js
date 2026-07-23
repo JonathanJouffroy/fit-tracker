@@ -194,6 +194,8 @@ export default function Repas() {
     const key = `${categorieNom}__${articleNom}`
     setArticlesCoches(prev => ({ ...prev, [key]: !prev[key] }))
   }
+
+  async function suggererAvecIA() {
     if (!ingredients.trim()) return
     setLoadingIA(true)
     setErreurIA(null)
