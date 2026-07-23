@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase'
 import Header from '@/app/components/Header'
 import JaugeCalories from '@/app/components/JaugeCalories'
 import GoogleFitSteps from '@/app/components/GoogleFitSteps'
+import BilanHebdo from '@/app/components/BilanHebdo'
 import { SkeletonCard, SkeletonJauge } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
 
@@ -257,6 +258,13 @@ export default function Dashboard() {
           {dateAffichee}
         </p>
       </div>
+
+      {/* Bilan hebdomadaire IA */}
+      <BilanHebdo
+        poidsCorps={dernierPoids}
+        objectifKcal={caloriesCible}
+        objectifPas={null}
+      />
 
       {/* Jauge calories */}
       {caloriesCible && (
