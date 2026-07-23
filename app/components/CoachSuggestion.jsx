@@ -20,16 +20,32 @@ export default function CoachSuggestion({ nomExercice, userId }) {
 
         const { data: exos } = await supabase
           .from('exercices').select('id')
-          .eq('user_id', userId).eq('nom', nomExercice.trim())
+          .eq('user_id', userId)
+          .ilike('nom', nomExercice.trim())
 
-        if (annule || !exos?.length) return
+        if (annule) return
 
-        const ids = exos.map(e => e.id)
-        const { data: logs } = await supabase
-          .from('seances_log')
-          .select('date_seance, poids_kg, repetitions_faites, exercice_id')
-          .in('exercice_id', ids)
-          .order('date_seance', { ascending: true })
+        let logs = null
+
+        if (exos?.length) {
+          const ids = exos.map(e => e.id)
+          const { data } = await supabase
+            .from('seances_log')
+            .select('date_seance, poids_kg, repetitions_faites, exercice_id')
+            .in('exercice_id', ids)
+            .order('date_seance', { ascending: true })
+          logs = data
+        }
+
+        // Fallback : chercher par exercice_nom si pas de résultats via l'id
+        if ((!logs || logs.length === 0) && !annule) {
+          const { data } = await supabase
+            .from('seances_log')
+            .select('date_seance, poids_kg, repetitions_faites, exercice_id')
+            .ilike('exercice_nom', nomExercice.trim())
+            .order('date_seance', { ascending: true })
+          logs = data
+        }
 
         if (annule || !logs?.length) return
 
@@ -37,7 +53,7 @@ export default function CoachSuggestion({ nomExercice, userId }) {
         logs.forEach(l => {
           if (!parDate[l.date_seance]) parDate[l.date_seance] = []
           parDate[l.date_seance].push({
-            poids: Number(l.poids_kg) || 0,
+            poids: Number(l.poids_kg) || 0, // 0 = pas de charge (poids du corps)
             reps: l.repetitions_faites || 0,
           })
         })
@@ -45,8 +61,10 @@ export default function CoachSuggestion({ nomExercice, userId }) {
         const sessions = Object.entries(parDate).map(([date, series]) => ({
           date,
           series,
-          // Garder poids_max pour compatibilité avec progressionVersObjectif
-          poids_max: Math.max(...series.map(s => s.poids).filter(p => p > 0), 0) || null,
+          // poids_max : inclure 0 pour les exercices au poids du corps
+          poids_max: series.some(s => s.poids !== 0)
+            ? Math.max(...series.map(s => s.poids))
+            : 0,
           reps_max: Math.max(...series.map(s => s.reps).filter(r => r > 0), 0) || null,
         }))
 
