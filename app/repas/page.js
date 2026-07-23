@@ -63,6 +63,13 @@ export default function Repas() {
   const [loadingIA, setLoadingIA] = useState(false)
   const [erreurIA, setErreurIA] = useState(null)
   const [typeRepasIA, setTypeRepasIA] = useState('dejeuner')
+
+  // Liste de courses
+  const [listeCourses, setListeCourses] = useState(null)
+  const [loadingCourses, setLoadingCourses] = useState(false)
+  const [erreurCourses, setErreurCourses] = useState(null)
+  const [articlesCoches, setArticlesCoches] = useState({})
+  const [coursesGenerees, setCoursesGenerees] = useState(false)
   const [suggestions, setSuggestions] = useState([]) // options filtrées par objectif
   const [typeSuggestion, setTypeSuggestion] = useState('petit-dejeuner')
   const [caloriesRestantes, setCaloriesRestantes] = useState(null)
@@ -134,7 +141,59 @@ export default function Repas() {
     }
   }
 
-  async function suggererAvecIA() {
+  async function genererListeCourses() {
+    setLoadingCourses(true)
+    setErreurCourses(null)
+    setListeCourses(null)
+    setArticlesCoches({})
+
+    try {
+      // Charger les repas des 4 dernières semaines
+      const il_y_a_28j = new Date()
+      il_y_a_28j.setDate(il_y_a_28j.getDate() - 28)
+      const { data: repasHistorique } = await supabase
+        .from('repas')
+        .select('nom, type, kcal_libre, proteines_libre, glucides_libre, lipides_libre')
+        .eq('user_id', userId)
+        .gte('date_repas', il_y_a_28j.toISOString().split('T')[0])
+
+      // Calculer les calories cibles depuis le profil
+      let caloriesCible = null
+      if (profil) {
+        const { calculerCaloriesCible } = await import('@/lib/calculs')
+        const res = calculerCaloriesCible({
+          poids: profil.poids_kg, taille: profil.taille_cm,
+          age: profil.age, sexe: profil.sexe,
+          niveauActivite: profil.niveauActivite, objectif: profil.objectif
+        })
+        caloriesCible = res?.caloriesCible || null
+      }
+
+      const res = await fetch('/api/ia/liste-courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repas: repasHistorique || [],
+          profil,
+          caloriesCible,
+        }),
+      })
+
+      if (!res.ok) throw new Error('Erreur serveur')
+      const data = await res.json()
+      setListeCourses(data.liste)
+      setCoursesGenerees(true)
+    } catch {
+      setErreurCourses('Impossible de générer la liste. Réessaie.')
+    } finally {
+      setLoadingCourses(false)
+    }
+  }
+
+  function toggleArticle(categorieNom, articleNom) {
+    const key = `${categorieNom}__${articleNom}`
+    setArticlesCoches(prev => ({ ...prev, [key]: !prev[key] }))
+  }
     if (!ingredients.trim()) return
     setLoadingIA(true)
     setErreurIA(null)
@@ -315,6 +374,7 @@ export default function Repas() {
         {[
           { id: 'repas-types', label: '📋 Repas types' },
           { id: 'frigo', label: '🧊 Frigo IA' },
+          { id: 'courses', label: '🛒 Courses' },
         ].map(o => (
           <button key={o.id} onClick={() => setOnglet(o.id)}
             className="flex-1 py-2 rounded-xl text-sm font-semibold"
@@ -578,6 +638,139 @@ export default function Repas() {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ======== ONGLET COURSES ======== */}
+      {onglet === 'courses' && (
+        <div className="flex flex-col gap-4">
+
+          {/* Contexte */}
+          <div className="rounded-xl px-3 py-2.5" style={{ background: 'var(--surface-2)' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
+              🛒 Liste de courses pour 7 jours
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
+              Générée en analysant tes habitudes alimentaires des 4 dernières semaines
+              {profil?.objectif ? ` · Objectif : ${
+                profil.objectif === 'perte_poids' ? 'perte de poids' :
+                profil.objectif === 'prise_masse' ? 'prise de masse' : 'maintien'
+              }` : ''}
+            </p>
+          </div>
+
+          {/* Bouton générer */}
+          {!coursesGenerees && (
+            <button onClick={genererListeCourses} disabled={loadingCourses}
+              className="btn-primary py-3 font-semibold disabled:opacity-40">
+              {loadingCourses ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  Analyse en cours...
+                </span>
+              ) : '🤖 Générer ma liste de courses'}
+            </button>
+          )}
+
+          {erreurCourses && (
+            <p className="text-sm text-center" style={{ color: '#ef4444' }}>{erreurCourses}</p>
+          )}
+
+          {/* Liste générée */}
+          {listeCourses && (
+            <div className="flex flex-col gap-4">
+
+              {/* Conseil + budget */}
+              {(listeCourses.conseil_semaine || listeCourses.budget_estime) && (
+                <div className="rounded-xl px-3 py-2.5 flex flex-col gap-1"
+                  style={{ background: 'var(--surface-2)', borderLeft: '3px solid var(--orange)' }}>
+                  {listeCourses.conseil_semaine && (
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      💡 {listeCourses.conseil_semaine}
+                    </p>
+                  )}
+                  {listeCourses.budget_estime && (
+                    <p className="text-xs font-semibold" style={{ color: 'var(--orange)' }}>
+                      Budget estimé : {listeCourses.budget_estime}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Progression cochés */}
+              {(() => {
+                const total = listeCourses.categories?.reduce((a, c) => a + c.articles.length, 0) || 0
+                const coches = Object.values(articlesCoches).filter(Boolean).length
+                return total > 0 && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--surface-2)' }}>
+                      <div className="h-full rounded-full transition-all"
+                        style={{ width: `${(coches / total) * 100}%`, background: coches === total ? '#22c55e' : 'var(--orange)' }} />
+                    </div>
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                      {coches}/{total}
+                    </span>
+                  </div>
+                )
+              })()}
+
+              {/* Catégories */}
+              {listeCourses.categories?.map(categorie => {
+                const cochesCategorie = categorie.articles.filter(a =>
+                  articlesCoches[`${categorie.nom}__${a.nom}`]
+                ).length
+                return (
+                  <div key={categorie.nom} className="card flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
+                        {categorie.emoji} {categorie.nom}
+                      </p>
+                      <span className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                        {cochesCategorie}/{categorie.articles.length}
+                      </span>
+                    </div>
+                    {categorie.articles.map(article => {
+                      const key = `${categorie.nom}__${article.nom}`
+                      const coche = articlesCoches[key]
+                      return (
+                        <button key={article.nom} onClick={() => toggleArticle(categorie.nom, article.nom)}
+                          className="flex items-center gap-3 w-full text-left py-1">
+                          <div className="flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all"
+                            style={{
+                              borderColor: coche ? '#22c55e' : 'var(--border)',
+                              background: coche ? '#22c55e' : 'transparent',
+                            }}>
+                            {coche && <span className="text-white text-xs">✓</span>}
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-sm" style={{
+                              color: coche ? 'var(--text-faint)' : 'var(--text)',
+                              textDecoration: coche ? 'line-through' : 'none',
+                            }}>
+                              {article.nom}
+                            </span>
+                            {article.conseil && !coche && (
+                              <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{article.conseil}</p>
+                            )}
+                          </div>
+                          <span className="text-xs font-medium flex-shrink-0"
+                            style={{ color: coche ? 'var(--text-faint)' : 'var(--orange)' }}>
+                            {article.quantite}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+
+              {/* Regénérer */}
+              <button onClick={() => { setCoursesGenerees(false); setListeCourses(null); setArticlesCoches({}) }}
+                className="text-sm text-center underline" style={{ color: 'var(--text-faint)' }}>
+                ↺ Regénérer la liste
+              </button>
             </div>
           )}
         </div>
