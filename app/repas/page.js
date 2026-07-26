@@ -234,6 +234,12 @@ export default function Repas() {
     }
   }
 
+  async function supprimerRepasType(id) {
+    if (!confirm('Supprimer ce repas type ?')) return
+    await supabase.from('options_repas').delete().eq('id', id).eq('user_id', userId)
+    charger()
+  }
+
   async function suggererAvecIA() {
     if (!ingredients.trim()) return
     setLoadingIA(true)
@@ -497,6 +503,7 @@ export default function Repas() {
                     onChoisir={() => choisirOption(option)}
                     caloriesRestantes={caloriesRestantes}
                     afficherObjectif={modeLibre}
+                    onSupprimer={option.user_id ? () => supprimerRepasType(option.id) : null}
                   />
                 ))}
               </div>
@@ -891,7 +898,7 @@ export default function Repas() {
 }
 
 // -------- Carte option repas (catalogue + suggestions) --------
-function CarteOption({ option, ingredients, ouvert, onToggle, onChoisir, caloriesRestantes, afficherObjectif }) {
+function CarteOption({ option, ingredients, ouvert, onToggle, onChoisir, caloriesRestantes, afficherObjectif, onSupprimer }) {
   const objInfo = OBJECTIF_LABELS[option.objectif_cible]
 
   // Indicateur de compatibilité avec les calories restantes
@@ -917,7 +924,14 @@ function CarteOption({ option, ingredients, ouvert, onToggle, onChoisir, calorie
             </div>
             {option.profil && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{option.profil}</p>}
           </div>
-          <span style={{ color: 'var(--text-faint)' }} className="text-sm ml-2">{ouvert ? '▲' : '▼'}</span>
+          <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+            {onSupprimer && (
+              <button type="button" onClick={e => { e.stopPropagation(); onSupprimer() }}
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{ color: 'var(--text-faint)' }}>✕</button>
+            )}
+            <span style={{ color: 'var(--text-faint)' }} className="text-sm">{ouvert ? '▲' : '▼'}</span>
+          </div>
         </div>
         <div className="flex gap-3 mt-2 text-xs font-medium flex-wrap">
           <span style={{ color: 'var(--orange)' }}>{option.kcal} kcal</span>
