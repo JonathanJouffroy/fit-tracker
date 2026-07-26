@@ -40,9 +40,10 @@ export default function BilanHebdo({ poidsCorps, objectif, objectifKcal, objecti
       const lundiActuel = formatDate(debutSemainePrecedente())
       if (dateCachee === lundiActuel && bilanCache) {
         setBilan(JSON.parse(bilanCache))
-        setOuvert(true)
+        // Ne pas ouvrir automatiquement — l'utilisateur clique sur "Voir"
+        setOuvert(false)
       } else if (estLundi()) {
-        // Lundi → générer automatiquement
+        // Lundi → générer automatiquement mais ne pas ouvrir
         generer()
       }
     } catch {}
@@ -143,7 +144,7 @@ export default function BilanHebdo({ poidsCorps, objectif, objectifKcal, objecti
       localStorage.setItem(CLE_DATE, formatDate(debutSemainePrecedente()))
 
       setBilan(data.bilan)
-      setOuvert(true)
+      setOuvert(false) // Ne pas ouvrir automatiquement
     } catch {
       setErreur('Impossible de générer le bilan. Réessaie.')
     } finally {
