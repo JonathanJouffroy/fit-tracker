@@ -195,7 +195,39 @@ export default function Repas() {
     setArticlesCoches(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  async function suggererAvecIA() {
+  async function sauvegarderCommeRepasType(suggestion) {
+    if (!userId) return
+    try {
+      const { data, error } = await supabase.from('options_repas').insert([{
+        user_id: userId,
+        nom: suggestion.nom,
+        type: typeRepasIA,
+        kcal: suggestion.kcal,
+        proteines_g: suggestion.proteines,
+        glucides_g: suggestion.glucides,
+        lipides_g: suggestion.lipides,
+        note_preparation: suggestion.etapes?.join(' | ') || null,
+        objectif_cible: profil?.objectif || 'tous',
+        ordre: 0,
+      }])
+      if (error) throw error
+
+      // Ajouter aussi les ingrédients si disponibles
+      if (data?.[0]?.id && suggestion.ingredients_utilises?.length) {
+        const ings = suggestion.ingredients_utilises.map((ing, i) => ({
+          option_repas_id: data[0].id,
+          nom: typeof ing === 'string' ? ing : ing.nom,
+          quantite: typeof ing === 'string' ? null : ing.quantite,
+          ordre: i,
+        }))
+        await supabase.from('options_repas_ingredients').insert(ings)
+      }
+
+      toast(`"${suggestion.nom}" ajouté à tes repas types ✓`)
+    } catch {
+      toast('Erreur lors de la sauvegarde')
+    }
+  }
     if (!ingredients.trim()) return
     setLoadingIA(true)
     setErreurIA(null)
@@ -633,11 +665,19 @@ export default function Repas() {
                     </div>
                   )}
 
-                  {/* Bouton ajouter */}
-                  <button onClick={() => ajouterSuggestionIA(s)}
-                    className="btn-primary text-sm py-2">
-                    + Ajouter à mes repas
-                  </button>
+                  {/* Boutons */}
+                  <div className="flex gap-2">
+                    <button onClick={() => ajouterSuggestionIA(s)}
+                      className="btn-primary text-sm py-2 flex-1">
+                      + Ajouter à mes repas
+                    </button>
+                    <button onClick={() => sauvegarderCommeRepasType(s)}
+                      className="text-sm py-2 px-3 rounded-xl font-medium flex-shrink-0"
+                      style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+                      title="Sauvegarder comme repas type">
+                      💾
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
