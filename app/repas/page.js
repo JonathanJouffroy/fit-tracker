@@ -206,16 +206,18 @@ export default function Repas() {
         proteines_g: suggestion.proteines,
         glucides_g: suggestion.glucides,
         lipides_g: suggestion.lipides,
-        note_preparation: suggestion.etapes?.join(' | ') || null,
+        note_preparation: suggestion.etapes?.join('\n') || null,
         objectif_cible: profil?.objectif || 'tous',
         ordre: 0,
-      }])
+      }]).select()
+
       if (error) throw error
 
-      // Ajouter aussi les ingrédients si disponibles
-      if (data?.[0]?.id && suggestion.ingredients_utilises?.length) {
+      // Insérer les ingrédients avec l'id retourné
+      const newId = data?.[0]?.id
+      if (newId && suggestion.ingredients_utilises?.length) {
         const ings = suggestion.ingredients_utilises.map((ing, i) => ({
-          option_repas_id: data[0].id,
+          option_repas_id: newId,
           nom: typeof ing === 'string' ? ing : ing.nom,
           quantite: typeof ing === 'string' ? null : ing.quantite,
           ordre: i,
@@ -224,7 +226,10 @@ export default function Repas() {
       }
 
       toast(`"${suggestion.nom}" ajouté à tes repas types ✓`)
-    } catch {
+      // Recharger le catalogue pour afficher le nouveau repas type
+      charger()
+    } catch (e) {
+      console.error('sauvegarderCommeRepasType:', e)
       toast('Erreur lors de la sauvegarde')
     }
   }
