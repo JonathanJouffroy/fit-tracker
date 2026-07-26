@@ -228,6 +228,8 @@ export default function Repas() {
       toast('Erreur lors de la sauvegarde')
     }
   }
+
+  async function suggererAvecIA() {
     if (!ingredients.trim()) return
     setLoadingIA(true)
     setErreurIA(null)
