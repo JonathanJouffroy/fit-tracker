@@ -993,12 +993,7 @@ function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer
     })
   }
 
-  const TYPES_REPAS = [
-    { value: 'petit-dejeuner', label: '🌅 Petit-déj' },
-    { value: 'dejeuner', label: '☀️ Déjeuner' },
-    { value: 'collation', label: '🍎 Collation' },
-    { value: 'diner', label: '🌙 Dîner' },
-  ]
+  const TYPES_REPAS = TYPES
 
   if (enEdition) {
     return (
