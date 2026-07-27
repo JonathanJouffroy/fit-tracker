@@ -973,6 +973,7 @@ function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer
     : (repas.kcal_libre || 0)
 
   const [nom, setNom] = useState(repas.nom)
+  const [type, setType] = useState(repas.type)
   const [kcal, setKcal] = useState(repas.kcal_libre || '')
   const [proteines, setProteines] = useState(repas.proteines_libre || '')
   const [glucides, setGlucides] = useState(repas.glucides_libre || '')
@@ -983,6 +984,7 @@ function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer
     e.preventDefault()
     onSauvegarder({
       nom,
+      type,
       kcal_libre: kcal ? Number(kcal) : null,
       proteines_libre: proteines ? Number(proteines) : null,
       glucides_libre: glucides ? Number(glucides) : null,
@@ -991,34 +993,59 @@ function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer
     })
   }
 
+  const TYPES_REPAS = [
+    { value: 'petit-dejeuner', label: '🌅 Petit-déj' },
+    { value: 'dejeuner', label: '☀️ Déjeuner' },
+    { value: 'collation', label: '🍎 Collation' },
+    { value: 'diner', label: '🌙 Dîner' },
+  ]
+
   if (enEdition) {
     return (
       <form onSubmit={sauvegarder} className="card flex flex-col gap-2.5">
         <input value={nom} onChange={(e) => setNom(e.target.value)} className="input" required />
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="label">Calories</label>
-            <input type="number" min="0" value={kcal} onChange={(e) => setKcal(e.target.value)} className="input" />
-          </div>
-          <div className="flex-1">
-            <label className="label">Quantité (g)</label>
-            <input type="number" min="0" value={quantite} onChange={(e) => setQuantite(e.target.value)} className="input" />
-          </div>
+
+        {/* Sélecteur de type */}
+        <div className="flex gap-1.5 flex-wrap">
+          {TYPES_REPAS.map(t => (
+            <button key={t.value} type="button" onClick={() => setType(t.value)}
+              className="text-xs px-2.5 py-1.5 rounded-full font-medium"
+              style={{
+                background: type === t.value ? 'var(--orange)' : 'var(--surface-2)',
+                color: type === t.value ? 'white' : 'var(--text-muted)',
+              }}>
+              {t.label}
+            </button>
+          ))}
         </div>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="label">Protéines</label>
-            <input type="number" min="0" step="0.1" value={proteines} onChange={(e) => setProteines(e.target.value)} className="input" />
-          </div>
-          <div className="flex-1">
-            <label className="label">Glucides</label>
-            <input type="number" min="0" step="0.1" value={glucides} onChange={(e) => setGlucides(e.target.value)} className="input" />
-          </div>
-          <div className="flex-1">
-            <label className="label">Lipides</label>
-            <input type="number" min="0" step="0.1" value={lipides} onChange={(e) => setLipides(e.target.value)} className="input" />
-          </div>
-        </div>
+        {estLibre && (
+          <>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="label">Calories</label>
+                <input type="number" min="0" value={kcal} onChange={(e) => setKcal(e.target.value)} className="input" />
+              </div>
+              <div className="flex-1">
+                <label className="label">Quantité (g)</label>
+                <input type="number" min="0" value={quantite} onChange={(e) => setQuantite(e.target.value)} className="input" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="label">Protéines</label>
+                <input type="number" min="0" step="0.1" value={proteines} onChange={(e) => setProteines(e.target.value)} className="input" />
+              </div>
+              <div className="flex-1">
+                <label className="label">Glucides</label>
+                <input type="number" min="0" step="0.1" value={glucides} onChange={(e) => setGlucides(e.target.value)} className="input" />
+              </div>
+              <div className="flex-1">
+                <label className="label">Lipides</label>
+                <input type="number" min="0" step="0.1" value={lipides} onChange={(e) => setLipides(e.target.value)} className="input" />
+              </div>
+            </div>
+          </>
+        )}
         <div className="flex gap-2">
           <button type="button" onClick={onEditer}
             className="flex-1 py-2 rounded-xl text-sm font-medium"
@@ -1043,13 +1070,11 @@ function CarteRepasJour({ repas, enEdition, onEditer, onSauvegarder, onSupprimer
         )}
       </div>
       <div className="flex items-center gap-1">
-        {estLibre && (
-          <button onClick={onEditer}
-            className="text-xs px-2 py-1.5 rounded-lg"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
-            ✏️
-          </button>
-        )}
+        <button onClick={onEditer}
+          className="text-xs px-2 py-1.5 rounded-lg"
+          style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+          ✏️
+        </button>
         <button onClick={onSupprimer} className="text-sm px-2" style={{ color: 'var(--text-faint)' }}>✕</button>
       </div>
     </div>
