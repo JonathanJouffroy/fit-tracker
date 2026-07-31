@@ -1,77 +1,62 @@
-import { NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase-server'
+import { redirect } from 'next/navigation';
+import Link from 'next/link';
+import { getSessionUser } from '@/lib/firebase/session';
+import { adminDb } from '@/lib/firebase/admin';
+import BottomNav from '@/components/BottomNav';
+import ObjectifSwitcher from '@/components/ObjectifSwitcher';
 
+export default async function DashboardLayout({ children }) {
+  const user = await getSessionUser();
+  if (!user) redirect('/login');
 
-export const dynamic = 'force-dynamic'
+  const allSnapshot = await adminDb()
+    .collection('objectifs')
+    .where('uid', '==', user.uid)
+    .orderBy('createdAt', 'desc')
+    .get();
 
-export async function POST(request) {
+  if (allSnapshot.empty) redirect('/onboarding');
+
+  const objectifs = allSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  let activeId = objectifs[0].id; // repli par défaut : le plus récent
   try {
-    const supabase = await createServerSupabaseClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error || !user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-
-    const { imageBase64, mimeType } = await request.json()
-    if (!imageBase64) return NextResponse.json({ error: 'Image manquante' }, { status: 400 })
-
-    const apiKey = process.env.GOOGLE_AI_KEY
-    if (!apiKey) return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
-
-    const prompt = `Tu es un nutritionniste expert en analyse visuelle d'aliments. Analyse cette photo d'assiette ou de repas.
-
-Identifie chaque aliment visible, estime les quantités visuellement (en grammes), et calcule les macros.
-
-Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
-{
-  "description": "Description courte de l'assiette (1 phrase)",
-  "aliments": [
-    {
-      "nom": "Blanc de poulet grillé",
-      "quantite_g": 180,
-      "kcal": 297,
-      "proteines_g": 56,
-      "glucides_g": 0,
-      "lipides_g": 5,
-      "confiance": "haute" | "moyenne" | "faible"
+    const prefSnap = await adminDb().collection('users').doc(user.uid).get();
+    const preferredId = prefSnap.exists ? prefSnap.data().activeObjectifId : null;
+    if (preferredId && objectifs.some((o) => o.id === preferredId)) {
+      activeId = preferredId;
     }
-  ],
-  "total": {
-    "kcal": 526,
-    "proteines_g": 60,
-    "glucides_g": 42,
-    "lipides_g": 6
-  },
-  "note": "Note optionnelle sur la précision ou des éléments difficiles à identifier"
-}`
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
-            ]
-          }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1000 },
-        }),
-      }
-    )
-
-    if (!res.ok) {
-      const err = await res.text()
-      console.error('Gemini error:', res.status, err)
-      return NextResponse.json({ error: 'Erreur API Gemini' }, { status: 500 })
-    }
-
-    const data = await res.json()
-    const texte = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
-    return NextResponse.json({ resultat: json })
   } catch (err) {
-    console.error('Reconnaissance photo error:', err)
-    return NextResponse.json({ error: 'Impossible d\'analyser la photo' }, { status: 500 })
+    console.error('DashboardLayout preference read error:', err);
   }
+
+  // Ne garder que des champs sérialisables pour le composant client (pas l'objet Timestamp
+  // "createdAt" renvoyé par le SDK Admin, qui casserait le rendu Server → Client Component).
+  const objectifsForSwitcher = objectifs.map((o) => ({
+    id: o.id,
+    langue_cible: o.langue_cible,
+    type: o.type,
+  }));
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <div className="flex items-center justify-between px-5 pt-6 pb-4">
+        <span className="font-display text-xl font-semibold text-ink">
+          Fluent <span className="italic font-normal text-sageDark">by</span>
+        </span>
+        <div className="flex items-center gap-2">
+          <ObjectifSwitcher objectifs={objectifsForSwitcher} activeId={activeId} />
+          <Link
+            href="/dashboard/compte"
+            aria-label="Mon compte"
+            className="w-8 h-8 rounded-full bg-white border border-line flex items-center justify-center text-sm text-inkSoft"
+          >
+            ⚙
+          </Link>
+        </div>
+      </div>
+      <div className="flex-1 px-5 pb-28">{children}</div>
+      <BottomNav />
+    </div>
+  );
 }
