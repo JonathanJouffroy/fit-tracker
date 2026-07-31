@@ -42,22 +42,29 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
   "note": "Note optionnelle sur la précision"
 }`
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
-            ]
-          }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
-        }),
-      }
-    )
+    // Retry automatique en cas de 503
+    let res
+    for (let tentative = 1; tentative <= 3; tentative++) {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
+              ]
+            }],
+            generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
+          }),
+        }
+      )
+      if (res.ok || res.status !== 503) break
+      console.log(`Tentative ${tentative} échouée (503), retry dans ${tentative * 2}s...`)
+      await new Promise(r => setTimeout(r, tentative * 2000))
+    }
 
     if (!res.ok) {
       const err = await res.text()
@@ -71,15 +78,12 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
 
     let json
     try {
-      // Essai 1 : JSON direct
       json = JSON.parse(texte.replace(/```json|```/g, '').trim())
     } catch {
       try {
-        // Essai 2 : extraire le bloc JSON
         const match = texte.match(/\{[\s\S]*\}/)
         if (match) json = JSON.parse(match[0])
       } catch {
-        // Essai 3 : réponse de secours depuis le texte partiel
         const descMatch = texte.match(/"description"\s*:\s*"([^"]+)"/)
         json = {
           description: descMatch?.[1] || 'Analyse partielle',
