@@ -19,7 +19,7 @@ export async function POST(request) {
 
 Identifie chaque aliment visible, estime les quantités visuellement (en grammes), et calcule les macros.
 
-Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
+Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown :
 {
   "description": "Description courte de l'assiette (1 phrase)",
   "aliments": [
@@ -39,7 +39,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
     "glucides_g": 42,
     "lipides_g": 6
   },
-  "note": "Note optionnelle"
+  "note": "Note optionnelle sur la précision"
 }`
 
     const res = await fetch(
@@ -54,7 +54,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
               { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
             ]
           }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1000 },
+          generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
         }),
       }
     )
@@ -67,11 +67,30 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
 
     const data = await res.json()
     const texte = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    console.log('Gemini raw response:', texte.slice(0, 200))
+    console.log('Gemini raw response:', texte.slice(0, 300))
 
-    const match = texte.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('Pas de JSON dans la réponse')
-    const json = JSON.parse(match[0])
+    let json
+    try {
+      // Essai 1 : JSON direct
+      json = JSON.parse(texte.replace(/```json|```/g, '').trim())
+    } catch {
+      try {
+        // Essai 2 : extraire le bloc JSON
+        const match = texte.match(/\{[\s\S]*\}/)
+        if (match) json = JSON.parse(match[0])
+      } catch {
+        // Essai 3 : réponse de secours depuis le texte partiel
+        const descMatch = texte.match(/"description"\s*:\s*"([^"]+)"/)
+        json = {
+          description: descMatch?.[1] || 'Analyse partielle',
+          aliments: [],
+          total: { kcal: 0, proteines_g: 0, glucides_g: 0, lipides_g: 0 },
+          note: 'Réponse incomplète — réessaie avec une photo plus simple'
+        }
+      }
+    }
+
+    if (!json) throw new Error('Impossible de parser la réponse')
     return NextResponse.json({ resultat: json })
   } catch (err) {
     console.error('Reconnaissance photo error:', err)
