@@ -57,7 +57,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
                 { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
               ]
             }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
+            generationConfig: { temperature: 0.2, maxOutputTokens: 4000 },
           }),
         }
       )
