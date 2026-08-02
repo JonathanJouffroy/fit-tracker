@@ -43,6 +43,7 @@ export default function SeanceJour() {
   const [logsJourMemo, setLogsJourMemo] = useState([])
   const [circuitEnCours, setCircuitEnCours] = useState(null)
   const [circuits, setCircuits] = useState([])
+  const [circuitsExistants, setCircuitsExistants] = useState([])
   const [dragId, setDragId] = useState(null)
   const [dropId, setDropId] = useState(null)
   const touchDragRef = { current: null }
@@ -143,6 +144,16 @@ export default function SeanceJour() {
       setPoidsCorps(mesures?.[0]?.poids_kg || null)
       setCircuits(circuitsData || [])
 
+      // Charger tous les circuits existants pour la réutilisation
+      const { data: tousCircuits } = await supabase
+        .from('circuits')
+        .select('*, circuit_exercices(*)')
+        .eq('user_id', user.id)
+        .neq('jour_id', Number(jourId))
+        .order('created_at', { ascending: false })
+        .limit(20)
+      setCircuitsExistants(tousCircuits || [])
+
       // Charger les logs du jour pour initialiser seriesFaites et kcalCardioTotal
       const { data: logsJour } = await supabase.from('seances_log')
         .select('exercice_id, serie_numero, kcal, duree_minutes')
@@ -241,7 +252,29 @@ export default function SeanceJour() {
     chargerTout()
   }
 
-  async function supprimerCircuit(circuitId, circuitNom) {
+  async function reutiliserCircuit(circuitSource) {
+    const exos = [...(circuitSource.circuit_exercices || [])].sort((a, b) => a.ordre - b.ordre)
+    const { data: newCircuit, error } = await supabase.from('circuits').insert([{
+      user_id: userId,
+      jour_id: Number(jourId),
+      nom: circuitSource.nom,
+      tours: circuitSource.tours,
+      repos_entre_exos: circuitSource.repos_entre_exos,
+      repos_entre_tours: circuitSource.repos_entre_tours,
+    }]).select().single()
+    if (error) { toast('Erreur lors de la réutilisation', 'error'); return }
+    await supabase.from('circuit_exercices').insert(
+      exos.map((ex, i) => ({
+        circuit_id: newCircuit.id,
+        nom: ex.nom,
+        repetitions: ex.repetitions,
+        duree_secondes: ex.duree_secondes,
+        ordre: i,
+      }))
+    )
+    toast(`Circuit "${circuitSource.nom}" ajouté ✓`)
+    chargerTout()
+  }
     if (!confirm(`Supprimer le circuit "${circuitNom}" ?`)) return
     await supabase.from('circuits').delete().eq('id', circuitId)
     setCircuits(prev => prev.filter(c => c.id !== circuitId))
@@ -770,6 +803,33 @@ export default function SeanceJour() {
             </div>
           ) : typeForm === 'circuit' ? (
             <>
+              {/* Circuits existants à réutiliser */}
+              {circuitsExistants.length > 0 && (
+                <div>
+                  <label className="label">Réutiliser un circuit existant</label>
+                  <div className="flex flex-col gap-2">
+                    {circuitsExistants.map(c => (
+                      <button key={c.id} type="button"
+                        onClick={() => reutiliserCircuit(c)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-left"
+                        style={{ background: 'var(--surface-2)' }}>
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>⚡ {c.nom}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                            {c.tours} tours · {(c.circuit_exercices || []).length} exercices
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium" style={{ color: 'var(--orange)' }}>+ Ajouter</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                    <span className="text-xs" style={{ color: 'var(--text-faint)' }}>ou créer nouveau</span>
+                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                  </div>
+                </div>
+              )}
               {/* Nom du circuit */}
               <div>
                 <label className="label">Nom du circuit</label>
