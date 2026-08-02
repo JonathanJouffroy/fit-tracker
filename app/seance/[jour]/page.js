@@ -275,6 +275,8 @@ export default function SeanceJour() {
     toast(`Circuit "${circuitSource.nom}" ajouté ✓`)
     chargerTout()
   }
+
+  async function supprimerCircuit(circuitId, circuitNom) {
     if (!confirm(`Supprimer le circuit "${circuitNom}" ?`)) return
     await supabase.from('circuits').delete().eq('id', circuitId)
     setCircuits(prev => prev.filter(c => c.id !== circuitId))
