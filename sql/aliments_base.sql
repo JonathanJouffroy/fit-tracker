@@ -153,3 +153,30 @@ insert into aliments_base (nom, kcal_100g, proteines_100g, glucides_100g, lipide
 -- PROTÉINES EN POUDRE
 ('Whey protéine (nature)',        373, 80.0, 7.0,  4.5,  'autre'),
 ('Whey protéine (chocolat)',      380, 75.0, 11.0, 5.0,  'autre');
+
+-- Produits courants supplémentaires
+insert into aliments_base (nom, kcal_100g, proteines_100g, glucides_100g, lipides_100g, categorie) values
+('Nutella',                     539, 6.3, 57.5, 30.9, 'autre'),
+('Confiture',                   250, 0.5, 62.0,  0.1, 'autre'),
+('Beurre de cacahuète bio',     588, 25.0, 20.0, 50.0, 'corps_gras'),
+('Yaourt grec nature',          133, 5.7,  4.0, 10.5, 'laitiers'),
+('Crème dessert chocolat',      135, 3.5, 19.5,  4.5, 'laitiers'),
+('Lait de coco',                200, 2.3,  2.8, 21.0, 'laitiers'),
+('Lait d''amande',               24, 0.5,  3.2,  1.0, 'laitiers'),
+('Lait de soja',                 44, 3.3,  2.8,  1.8, 'laitiers'),
+('Coca-Cola',                    42, 0.0, 10.6,  0.0, 'autre'),
+('Jus d''orange',                45, 0.7, 10.4,  0.2, 'fruits'),
+('Soupe de légumes',             35, 1.5,  6.5,  0.5, 'legumes'),
+('Houmous',                     166, 7.9, 14.3,  9.6, 'legumineuses'),
+('Guacamole',                   155, 2.0,  8.8, 13.9, 'fruits'),
+('Saumon fumé',                 185, 25.0, 0.5, 10.0, 'poissons'),
+('Jambon de Parme',             269, 25.9, 0.0, 18.3, 'viandes'),
+('Chorizo',                     455, 24.1, 1.9, 38.3, 'viandes'),
+('Saucisse de Francfort',       295, 11.7, 2.5, 26.9, 'viandes'),
+('Crêpe nature',                213, 6.7, 29.4,  7.8, 'feculents'),
+('Gaufre',                      327, 7.2, 45.5, 13.2, 'feculents'),
+('Muesli',                      363, 9.5, 61.5,  7.5, 'feculents'),
+('Granola',                     450, 9.0, 62.0, 18.0, 'feculents'),
+('Barre protéinée',             350, 30.0, 35.0, 9.0, 'autre'),
+('Compote de pommes',            60, 0.3, 14.8,  0.1, 'fruits'),
+('Purée de patate douce',        90, 1.6, 20.5,  0.3, 'legumes');

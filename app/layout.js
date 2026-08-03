@@ -24,8 +24,12 @@ export const viewport = {
 }
 
 export default function RootLayout({ children }) {
+  const themeScript = `(function(){try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark');else if(t==='light')document.documentElement.classList.add('light');}catch(e){}})()`
   return (
     <html lang="fr">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <PWARegister />
         <ToastProvider>

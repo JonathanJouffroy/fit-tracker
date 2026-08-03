@@ -57,7 +57,10 @@ export default function TimerSeance({ jourId }) {
         return
       }
 
-      if (s === 'running' || s === 'paused') {
+      if (s === 'running') {
+        // Timer en cours → reprendre automatiquement sans afficher le modal
+        reprendre()
+      } else if (s === 'paused') {
         setShowModal(true) // proposer reprendre ou nouvelle
       }
     } catch {}
