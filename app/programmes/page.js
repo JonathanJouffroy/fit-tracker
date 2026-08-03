@@ -1,588 +1,1000 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase'
-import { useToast } from '@/app/components/Toast'
+import RestTimer from '@/app/components/RestTimer'
+import TimerSeance from '@/app/components/TimerSeance'
 import AutocompleteInput from '@/app/components/AutocompleteInput'
-import Header from '@/app/components/Header'
-import { SkeletonListe } from '@/app/components/Skeleton'
-import { ACTIVITES_CARDIO } from '@/lib/calculs'
+import FormCardio from '@/app/components/FormCardio'
+import GifExercice from '@/app/components/GifExercice'
+import Drawer from '@/app/components/Drawer'
+import CircuitMode from '@/app/components/CircuitMode'
+import { useToast } from '@/app/components/Toast'
+import { SkeletonExercice } from '@/app/components/Skeleton'
+import { ErreurChargement } from '@/app/components/Erreur'
+import { calculerCaloriesExercice, calculerCaloriesCardio, ACTIVITES_CARDIO } from '@/lib/calculs'
+import CoachSuggestion from '@/app/components/CoachSuggestion'
 
-const JOURS = [
-  { id: 1, nom: 'Lundi' }, { id: 2, nom: 'Mardi' }, { id: 3, nom: 'Mercredi' },
-  { id: 4, nom: 'Jeudi' }, { id: 5, nom: 'Vendredi' }, { id: 6, nom: 'Samedi' }, { id: 7, nom: 'Dimanche' },
-]
 
-function newExo(type = 'muscu') {
-  if (type === 'cardio') return { nom: '', type_exercice: 'cardio', activite_cardio: 'natation' }
-  return { nom: '', type_exercice: 'muscu', series: 3, repetitions: 10, repos_secondes: 60, poids_charge_kg: 0 }
-}
+export default function SeanceJour() {
+  const { jour: jourId } = useParams()
+  const router = useRouter()
+  const supabase = createClient()
+  const toast = useToast()
 
-// ======== Formulaire création / édition (partagé) ========
-function FormulaireProgamme({ userId, supabase, toast, onSave, onAnnuler, nomsExistants, progAEditer }) {
-  const edition = !!progAEditer
+  const [jour, setJour] = useState(null)
+  const [exercices, setExercices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [erreur, setErreur] = useState(null)
+  const [exoActifTimer, setExoActifTimer] = useState(null)
+  const [poidsCorps, setPoidsCorps] = useState(null)
+  const [userId, setUserId] = useState(null)
+  const [seriesFaites, setSeriesFaites] = useState({})
+  const [poidsSerieEnCours, setPoidsSerieEnCours] = useState({})
+  const [repsReelles, setRepsReelles] = useState({})
+  const [modeAssistance, setModeAssistance] = useState({})
+  const [nomsExistants, setNomsExistants] = useState([])
+  const [idsByNom, setIdsByNom] = useState({})
+  const [cardioEnCours, setCardioEnCours] = useState(null)
+  const [drawerExo, setDrawerExo] = useState(null)
+  const [kcalCardioTotal, setKcalCardioTotal] = useState(0)
+  const [kcalCircuitTotal, setKcalCircuitTotal] = useState(0)
+  const [logsJourMemo, setLogsJourMemo] = useState([])
+  const [circuitEnCours, setCircuitEnCours] = useState(null)
+  const [circuits, setCircuits] = useState([])
+  const [circuitsExistants, setCircuitsExistants] = useState([])
+  const [dragId, setDragId] = useState(null)
+  const [dropId, setDropId] = useState(null)
+  const touchDragRef = { current: null }
 
-  const [nomProg, setNomProg] = useState(progAEditer?.nom || '')
-  const [descProg, setDescProg] = useState(progAEditer?.description || '')
-  const [exoParJour, setExoParJour] = useState(() => {
-    if (!progAEditer) return {}
-    const map = {}
-    progAEditer.programme_exercices?.forEach((pe) => {
-      if (!map[pe.jour_id]) map[pe.jour_id] = []
-      map[pe.jour_id].push({
-        nom: pe.nom,
-        type_exercice: pe.type_exercice || 'muscu',
-        activite_cardio: pe.activite_cardio || null,
-        series: pe.series,
-        repetitions: pe.repetitions,
-        repos_secondes: pe.repos_secondes,
-        poids_charge_kg: pe.poids_charge_kg || 0,
+  // Formulaire ajout
+  const [showForm, setShowForm] = useState(false)
+  const [typeForm, setTypeForm] = useState('muscu')
+  const [nom, setNom] = useState('')
+  const [series, setSeries] = useState(3)
+  const [repetitions, setRepetitions] = useState(10)
+  const [repos, setRepos] = useState(60)
+  const [poidsCharge, setPoidsCharge] = useState('')
+  const [activiteCardio, setActiviteCardio] = useState('natation')
+
+  // Formulaire circuit
+  const [nomCircuit, setNomCircuit] = useState('')
+  const [toursCircuit, setToursCircuit] = useState(3)
+  const [reposEntreExos, setReposEntreExos] = useState(15)
+  const [reposEntreTours, setReposEntreTours] = useState(60)
+  const [exosCircuitForm, setExosCircuitForm] = useState([
+    { id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }
+  ])
+
+  // Formulaire édition
+  const [exoEnEdition, setExoEnEdition] = useState(null)
+  const [editNom, setEditNom] = useState('')
+  const [editSeries, setEditSeries] = useState(3)
+  const [editRepetitions, setEditRepetitions] = useState(10)
+  const [editRepos, setEditRepos] = useState(60)
+  const [editPoidsCharge, setEditPoidsCharge] = useState('')
+  const [editNote, setEditNote] = useState('')
+
+  const d = new Date()
+  const dateLocale = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const storageKey = `seance-${jourId}-${dateLocale}`
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey)
+      if (saved) {
+        const { seriesFaites: sf, poidsSerieEnCours: psc } = JSON.parse(saved)
+        if (sf) setSeriesFaites(sf)
+        if (psc) setPoidsSerieEnCours(psc)
+      }
+    } catch {}
+    chargerTout()
+  }, [jourId])
+
+  useEffect(() => {
+    if (Object.keys(seriesFaites).length === 0) return
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ seriesFaites, poidsSerieEnCours }))
+    } catch {}
+  }, [seriesFaites, poidsSerieEnCours])
+
+  async function chargerTout() {
+    setLoading(true)
+    setErreur(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUserId(user.id)
+
+      // Cache localStorage pour la table jours (données statiques)
+      const cacheKey = `jour-${jourId}`
+      let jourData = null
+      try {
+        const cached = localStorage.getItem(cacheKey)
+        if (cached) jourData = JSON.parse(cached)
+      } catch {}
+
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+      const [
+        { data: exosData },
+        { data: mesures },
+        { data: tousExos },
+        { data: circuitsData },
+        jourResult,
+      ] = await Promise.race([
+        Promise.all([
+          supabase.from('exercices').select('*').eq('jour_id', jourId).eq('user_id', user.id).order('ordre'),
+          supabase.from('mesures').select('poids_kg').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
+          supabase.from('exercices').select('id, nom').eq('user_id', user.id),
+          supabase.from('circuits').select('*, circuit_exercices(*)').eq('user_id', user.id).eq('jour_id', jourId).order('created_at'),
+          jourData ? Promise.resolve(null) : supabase.from('jours').select('*').eq('id', jourId).single(),
+        ]),
+        timeout,
+      ])
+
+      // Mettre à jour le cache si on vient de charger le jour
+      if (jourResult?.data) {
+        jourData = jourResult.data
+        try { localStorage.setItem(cacheKey, JSON.stringify(jourData)) } catch {}
+      }
+
+      setJour(jourData)
+      setExercices(exosData || [])
+      setPoidsCorps(mesures?.[0]?.poids_kg || null)
+      setCircuits(circuitsData || [])
+
+      // Charger tous les circuits existants pour la réutilisation
+      const { data: tousCircuits } = await supabase
+        .from('circuits')
+        .select('*, circuit_exercices(*)')
+        .eq('user_id', user.id)
+        .neq('jour_id', Number(jourId))
+        .order('created_at', { ascending: false })
+        .limit(20)
+      setCircuitsExistants(tousCircuits || [])
+
+      // Charger les logs du jour pour initialiser seriesFaites et kcalCardioTotal
+      const { data: logsJour } = await supabase.from('seances_log')
+        .select('exercice_id, serie_numero, kcal, duree_minutes')
+        .eq('user_id', user.id)
+        .eq('date_seance', (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` })())
+
+      if (logsJour?.length) {
+        const sf = {}
+        let kcalCardio = 0
+        logsJour.forEach(l => {
+          if (!sf[l.exercice_id]) sf[l.exercice_id] = 0
+          sf[l.exercice_id]++
+          if (l.kcal) kcalCardio += l.kcal
+        })
+        setSeriesFaites(sf)
+        setKcalCardioTotal(kcalCardio)
+        setLogsJourMemo(logsJour)
+      }
+
+      const map = {}
+      tousExos?.forEach((e) => { if (!map[e.nom]) map[e.nom] = []; map[e.nom].push(e.id) })
+      setIdsByNom(map)
+      setNomsExistants([...new Set((tousExos || []).map((e) => e.nom))].sort())
+
+      setPoidsSerieEnCours((prev) => {
+        const next = { ...prev }
+        exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
+        return next
       })
-    })
-    Object.keys(map).forEach((k) => {
-      map[k].sort((a, b) => (a.ordre || 0) - (b.ordre || 0))
-    })
-    return map
-  })
-  const [jourActif, setJourActif] = useState(1)
-  const [enCours, setEnCours] = useState(false)
-
-  function ajouterExo(jourId, type = 'muscu') {
-    setExoParJour((prev) => ({ ...prev, [jourId]: [...(prev[jourId] || []), newExo(type)] }))
+      setRepsReelles((prev) => {
+        const next = { ...prev }
+        exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.repetitions })
+        return next
+      })
+    } catch (e) {
+      setErreur(e.message === 'timeout'
+        ? 'Connexion trop lente. Supabase est peut-être indisponible.'
+        : 'Impossible de charger la séance. Vérifie ta connexion.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  function supprimerExo(jourId, i) {
-    setExoParJour((prev) => {
-      const liste = [...(prev[jourId] || [])]
-      liste.splice(i, 1)
-      return { ...prev, [jourId]: liste }
+  async function rechargerExercices(uid) {
+    const { data: exosData } = await supabase.from('exercices').select('*')
+      .eq('jour_id', jourId).eq('user_id', uid).order('ordre')
+    setExercices(exosData || [])
+    const { data: tousExos } = await supabase.from('exercices').select('id, nom').eq('user_id', uid)
+    const map = {}
+    tousExos?.forEach((e) => { if (!map[e.nom]) map[e.nom] = []; map[e.nom].push(e.id) })
+    setIdsByNom(map)
+    setPoidsSerieEnCours((prev) => {
+      const next = { ...prev }
+      exosData?.forEach((e) => { if (!(e.id in next)) next[e.id] = e.poids_charge_kg || '' })
+      return next
     })
   }
 
-  function modifierExo(jourId, i, champ, valeur) {
-    setExoParJour((prev) => {
-      const liste = [...(prev[jourId] || [])]
-      liste[i] = { ...liste[i], [champ]: valeur }
-      return { ...prev, [jourId]: liste }
-    })
+  function lienProgression(exo) {
+    const ids = idsByNom[exo.nom] || [exo.id]
+    return `/progression/exercice/${ids[0]}?nom=${encodeURIComponent(exo.nom)}`
   }
 
-  async function sauvegarder() {
-    if (!nomProg.trim() || !userId) return
-    const totalExos = Object.values(exoParJour).flat().filter(e => e.nom.trim()).length
-    if (totalExos === 0) { toast('Ajoute au moins un exercice', 'error'); return }
+  async function ajouterCircuit(e) {
+    e.preventDefault()
+    const exosValides = exosCircuitForm.filter(ex => ex.nom.trim())
+    if (!nomCircuit.trim() || exosValides.length < 2) return
 
-    setEnCours(true)
+    const { data: circuit, error } = await supabase.from('circuits').insert([{
+      user_id: userId,
+      jour_id: Number(jourId),
+      nom: nomCircuit.trim(),
+      tours: toursCircuit,
+      repos_entre_exos: reposEntreExos,
+      repos_entre_tours: reposEntreTours,
+    }]).select().single()
 
-    let progId
-    if (edition) {
-      // Mettre à jour le programme
-      await supabase.from('programmes').update({
-        nom: nomProg.trim(),
-        description: descProg.trim() || null,
-      }).eq('id', progAEditer.id)
-      // Supprimer les anciens exercices
-      await supabase.from('programme_exercices').delete().eq('programme_id', progAEditer.id)
-      progId = progAEditer.id
+    if (error) { toast('Erreur lors de la création du circuit', 'error'); return }
+
+    const exosInsert = exosValides.map((ex, i) => ({
+      circuit_id: circuit.id,
+      nom: ex.nom.trim(),
+      repetitions: ex.repetitions ? Number(ex.repetitions) : null,
+      duree_secondes: ex.duree_secondes ? Number(ex.duree_secondes) : null,
+      ordre: i,
+    }))
+    await supabase.from('circuit_exercices').insert(exosInsert)
+
+    toast(`Circuit "${nomCircuit}" créé ✓`)
+    setShowForm(false)
+    setNomCircuit('')
+    setToursCircuit(3)
+    setReposEntreExos(15)
+    setReposEntreTours(60)
+    setExosCircuitForm([{ id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }])
+    chargerTout()
+  }
+
+  async function reutiliserCircuit(circuitSource) {
+    const exos = [...(circuitSource.circuit_exercices || [])].sort((a, b) => a.ordre - b.ordre)
+    const { data: newCircuit, error } = await supabase.from('circuits').insert([{
+      user_id: userId,
+      jour_id: Number(jourId),
+      nom: circuitSource.nom,
+      tours: circuitSource.tours,
+      repos_entre_exos: circuitSource.repos_entre_exos,
+      repos_entre_tours: circuitSource.repos_entre_tours,
+    }]).select().single()
+    if (error) { toast('Erreur lors de la réutilisation', 'error'); return }
+    await supabase.from('circuit_exercices').insert(
+      exos.map((ex, i) => ({
+        circuit_id: newCircuit.id,
+        nom: ex.nom,
+        repetitions: ex.repetitions,
+        duree_secondes: ex.duree_secondes,
+        ordre: i,
+      }))
+    )
+    toast(`Circuit "${circuitSource.nom}" ajouté ✓`)
+    chargerTout()
+  }
+    if (!confirm(`Supprimer le circuit "${circuitNom}" ?`)) return
+    await supabase.from('circuits').delete().eq('id', circuitId)
+    setCircuits(prev => prev.filter(c => c.id !== circuitId))
+    toast(`Circuit supprimé`)
+  }
+
+  function ajouterExoCircuit() {
+    setExosCircuitForm(prev => [...prev, { id: Date.now(), nom: '', repetitions: '', duree_secondes: '' }])
+  }
+
+  function modifierExoCircuit(id, champ, valeur) {
+    setExosCircuitForm(prev => prev.map(ex => ex.id === id ? { ...ex, [champ]: valeur } : ex))
+  }
+
+  function supprimerExoCircuit(id) {
+    setExosCircuitForm(prev => prev.filter(ex => ex.id !== id))
+  }
+
+  async function ajouterExercice(e) {
+    e.preventDefault()
+    if (!nom.trim() || !userId) return
+    const { error } = await supabase.from('exercices').insert([{
+      user_id: userId, jour_id: jourId, nom,
+      type_exercice: typeForm,
+      activite_cardio: typeForm === 'cardio' ? activiteCardio : null,
+      series: typeForm === 'muscu' ? Number(series) : 1,
+      repetitions: typeForm === 'muscu' ? Number(repetitions) : 0,
+      repos_secondes: typeForm === 'muscu' ? Number(repos) : 0,
+      poids_charge_kg: typeForm === 'muscu' && poidsCharge ? Number(poidsCharge) : 0,
+      ordre: exercices.length,
+    }])
+    if (error) { toast('Erreur lors de l\'ajout', 'error'); return }
+    setNom(''); setSeries(3); setRepetitions(10); setRepos(60); setPoidsCharge('')
+    setShowForm(false)
+    toast(`${nom} ajouté ✓`)
+    rechargerExercices(userId)
+  }
+
+  function ouvrirEdition(exo) {
+    setExoEnEdition(exo)
+    setEditNom(exo.nom); setEditSeries(exo.series)
+    setEditRepetitions(exo.repetitions); setEditRepos(exo.repos_secondes)
+    setEditPoidsCharge(exo.poids_charge_kg || '')
+    setEditNote(exo.note || '')
+    setShowForm(false)
+  }
+
+  async function sauvegarderEdition(e) {
+    e.preventDefault()
+    if (!editNom.trim() || !exoEnEdition) return
+    const { error } = await supabase.from('exercices').update({
+      nom: editNom, series: Number(editSeries),
+      repetitions: Number(editRepetitions), repos_secondes: Number(editRepos),
+      poids_charge_kg: editPoidsCharge ? Number(editPoidsCharge) : 0,
+      note: editNote.trim() || null,
+    }).eq('id', exoEnEdition.id)
+    if (error) { toast('Erreur lors de la modification', 'error'); return }
+    toast(`${editNom} modifié ✓`)
+    setExoEnEdition(null)
+    rechargerExercices(userId)
+  }
+
+  async function supprimerExercice(id, nomExo) {
+    if (!confirm(`Retirer "${nomExo}" de cette séance ?\n\nL'exercice et son historique de progression seront conservés.`)) return
+    // Délier l'exercice du jour (jour_id = null) au lieu de le supprimer
+    // Cela conserve les logs dans seances_log pour la page Progrès
+    await supabase.from('exercices').update({ jour_id: null }).eq('id', id)
+    setSeriesFaites((s) => { const n = { ...s }; delete n[id]; return n })
+    setPoidsSerieEnCours((s) => { const n = { ...s }; delete n[id]; return n })
+    setRepsReelles((s) => { const n = { ...s }; delete n[id]; return n })
+    toast(`${nomExo} retiré de la séance`)
+    rechargerExercices(userId)
+  }
+
+  async function deplacerExercice(idSource, idCible) {
+    if (idSource === idCible) return
+    const liste = [...exercices]
+    const iSource = liste.findIndex(e => e.id === idSource)
+    const iCible = liste.findIndex(e => e.id === idCible)
+    if (iSource === -1 || iCible === -1) return
+    const [deplace] = liste.splice(iSource, 1)
+    liste.splice(iCible, 0, deplace)
+    setExercices(liste)
+    // Persister le nouvel ordre en DB
+    await Promise.all(liste.map((e, i) =>
+      supabase.from('exercices').update({ ordre: i }).eq('id', e.id)
+    ))
+  }
+
+  async function terminerSerie(exercice) {
+    const fait = (seriesFaites[exercice.id] || 0) + 1
+    setSeriesFaites((s) => ({ ...s, [exercice.id]: fait }))
+    const poidsRaw = parseFloat(poidsSerieEnCours[exercice.id]) || null
+    const estAssistance = modeAssistance[exercice.id] || false
+    // Poids négatif = assistance (convention : -20 = 20kg d'assistance)
+    const poidsSerie = poidsRaw !== null ? (estAssistance ? -Math.abs(poidsRaw) : poidsRaw) : null
+    const repsEffectives = Number(repsReelles[exercice.id]) || exercice.repetitions
+    await supabase.from('seances_log').insert([{
+      user_id: userId, exercice_id: exercice.id, exercice_nom: exercice.nom,
+      serie_numero: fait, repetitions_faites: repsEffectives, poids_kg: poidsSerie,
+    }])
+    setLogsJourMemo(prev => [...prev, {
+      exercice_id: exercice.id,
+      repetitions_faites: repsEffectives,
+    }])
+    if (fait < exercice.series) {
+      setExoActifTimer({ exerciceId: exercice.id, duree: exercice.repos_secondes })
     } else {
-      // Créer le programme
-      const { data, error } = await supabase.from('programmes').insert([{
-        user_id: userId, nom: nomProg.trim(),
-        description: descProg.trim() || null, est_fixe: false,
-      }]).select().single()
-      if (error) { toast('Erreur lors de la création', 'error'); setEnCours(false); return }
-      progId = data.id
+      setExoActifTimer(null)
+      toast(`${exercice.nom} terminé 💪`)
+    }
+  }
+
+  async function terminerCardio(exo, metriques) {
+    const kcalCardio = poidsCorps ? Math.round(calculerCaloriesCardio({
+      activiteId: exo.activite_cardio,
+      dureeMinutes: metriques.duree_minutes || 0,
+      poidsCorps,
+      deniveleM: metriques.denivele_m || 0,
+    })) : 0
+
+    // Insert minimal d'abord (sans les colonnes optionnelles)
+    const { data: logData, error: erreurInsert } = await supabase
+      .from('seances_log')
+      .insert([{
+        user_id: userId,
+        exercice_id: exo.id,
+        exercice_nom: exo.nom,
+        serie_numero: 1,
+        repetitions_faites: 0,
+        poids_kg: null,
+        duree_minutes: metriques.duree_minutes || null,
+        distance_m: metriques.distance_m || null,
+        denivele_m: metriques.denivele_m ? Math.round(metriques.denivele_m) : null,
+        nb_sauts: metriques.nb_sauts ? Math.round(metriques.nb_sauts) : null,
+        note_cardio: metriques.note_cardio || null,
+        kcal: kcalCardio || null,
+      }])
+      .select('id')
+
+    if (erreurInsert) {
+      toast(`Erreur: ${erreurInsert.message}`, 'error')
+      return
     }
 
-    const lignes = []
-    Object.entries(exoParJour).forEach(([jourId, exos]) => {
-      exos.forEach((exo, i) => {
-        if (!exo.nom.trim()) return
-        const isCardio = exo.type_exercice === 'cardio'
-        lignes.push({
-          programme_id: progId,
-          jour_id: Number(jourId),
-          nom: exo.nom.trim(),
-          type_exercice: exo.type_exercice === 'cardio' ? 'cardio' : 'muscu',
-          activite_cardio: isCardio ? (exo.activite_cardio || 'natation') : null,
-          series: isCardio ? 1 : Number(exo.series) || 3,
-          repetitions: isCardio ? 0 : Number(exo.repetitions) || 10,
-          repos_secondes: isCardio ? 0 : Number(exo.repos_secondes) || 60,
-          poids_charge_kg: isCardio ? 0 : Number(exo.poids_charge_kg) || 0,
-          ordre: i,
-        })
-      })
-    })
-
-    if (lignes.length > 0) await supabase.from('programme_exercices').insert(lignes)
-
-    toast(edition ? `Programme "${nomProg}" modifié ✓` : `Programme "${nomProg}" créé ✓`)
-    setEnCours(false)
-    onSave()
+    setSeriesFaites((s) => ({ ...s, [exo.id]: 1 }))
+    setKcalCardioTotal((prev) => prev + (kcalCardio || 0))
+    setCardioEnCours(null)
+    toast(`${exo.nom} enregistré 💪`)
   }
 
+  if (loading) return (
+    <div className="pt-6">
+      <div className="h-5 w-20 rounded-lg mb-3 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <div className="h-8 w-40 rounded-lg mb-6 animate-pulse" style={{ background: 'var(--surface-2)' }} />
+      <div className="flex flex-col gap-4">
+        {Array.from({ length: 4 }).map((_, i) => <SkeletonExercice key={i} />)}
+      </div>
+    </div>
+  )
+
+  if (erreur) return (
+    <div className="pt-6">
+      <button onClick={() => router.push('/')} className="text-sm mb-4" style={{ color: 'var(--orange)' }}>← Retour</button>
+      <ErreurChargement message={erreur} onReessayer={chargerTout} />
+    </div>
+  )
+
+  function kcalExo(exo, nbSeries) {
+    if (exo.type_exercice === 'cardio') return 0
+    if (nbSeries === 0) return 0
+    const reps = Number(repsReelles[exo.id]) || exo.repetitions
+    // Calculer série par série (même méthode que l'historique)
+    return calculerCaloriesExercice({ series: nbSeries, repetitions: reps, poidsCharge: exo.poids_charge_kg, poidsCorps })
+  }
+
+  const exosMuscu = exercices.filter(e => e.type_exercice !== 'cardio')
+  const exosCardio = exercices.filter(e => e.type_exercice === 'cardio')
+  const kcalPrevu = Math.round(exosMuscu.reduce((a, e) => a + kcalExo(e, e.series), 0))
+
+  // Calcul en temps réel pendant la séance : seriesFaites × repsReelles
+  const kcalMuscuFait = exosMuscu.reduce((total, exo) => {
+    const nbFaites = seriesFaites[exo.id] || 0
+    if (nbFaites === 0) return total
+    const reps = Number(repsReelles[exo.id]) || exo.repetitions
+    return total + calculerCaloriesExercice({
+      series: nbFaites,
+      repetitions: reps,
+      poidsCharge: exo.poids_charge_kg || 0,
+      poidsCorps,
+    })
+  }, 0)
+  const kcalTotalFait = Math.round(kcalMuscuFait + kcalCardioTotal + kcalCircuitTotal)
   return (
-    <div className="flex flex-col gap-4">
-      <div className="card flex flex-col gap-3">
-        <p className="font-semibold" style={{ color: 'var(--text)' }}>
-          {edition ? 'Modifier le programme' : 'Nouveau programme'}
+    <>
+    <div>
+      <button onClick={() => router.push('/')} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
+      <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text)' }}>{jour?.nom}</h1>
+
+      <TimerSeance jourId={jourId} />
+
+      {!poidsCorps && (
+        <p className="text-xs mb-3" style={{ color: 'var(--orange)' }}>
+          Renseigne ton poids dans Profil pour voir les calories dépensées.
         </p>
-        <div>
-          <label className="label">Nom *</label>
-          <input value={nomProg} onChange={(e) => setNomProg(e.target.value)}
-            placeholder="Ex: Mon programme été" className="input" autoFocus />
-        </div>
-        <div>
-          <label className="label">Description (optionnel)</label>
-          <input value={descProg} onChange={(e) => setDescProg(e.target.value)}
-            placeholder="Ex: Prise de masse, 5 jours/semaine" className="input" />
-        </div>
-      </div>
+      )}
 
-      {/* Sélecteur de jour */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
-        {JOURS.map((j) => {
-          const nb = (exoParJour[j.id] || []).filter(e => e.nom.trim()).length
-          const actif = jourActif === j.id
-          return (
-            <button key={j.id} onClick={() => setJourActif(j.id)}
-              className="flex-shrink-0 px-3 py-2 rounded-xl text-sm font-medium"
-              style={{
-                background: actif ? 'var(--orange)' : 'var(--surface)',
-                color: actif ? 'white' : 'var(--text-muted)',
-                border: `1px solid ${actif ? 'var(--orange)' : 'var(--border)'}`,
-              }}>
-              {j.nom.slice(0, 3)}
-              {nb > 0 && (
-                <span className="ml-1 text-xs font-bold"
-                  style={{ color: actif ? 'rgba(255,255,255,0.8)' : 'var(--orange)' }}>
-                  {nb}
-                </span>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Exercices du jour actif */}
-      <div className="card flex flex-col gap-3">
-        <div className="flex justify-between items-center">
-          <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>
-            {JOURS.find(j => j.id === jourActif)?.nom}
-          </p>
-          {(exoParJour[jourActif] || []).length === 0 && (
-            <span className="text-xs" style={{ color: 'var(--text-faint)' }}>Repos</span>
-          )}
-        </div>
-
-        {(exoParJour[jourActif] || []).map((exo, i) => {
-          const isCardio = exo.type_exercice === 'cardio'
-          return (
-            <div key={i} className="flex flex-col gap-2 pb-3 border-b last:border-0 last:pb-0"
-              style={{ borderColor: 'var(--border)' }}>
-
-              {/* Toggle muscu/cardio par exercice */}
-              <div className="flex gap-1">
-                {[['muscu', '🏋️'], ['cardio', '🏃']].map(([t, icon]) => (
-                  <button key={t} type="button"
-                    onClick={() => modifierExo(jourActif, i, 'type_exercice', t)}
-                    className="px-2 py-1 rounded-lg text-xs font-medium"
-                    style={{
-                      background: exo.type_exercice === t ? 'var(--orange)' : 'var(--surface-2)',
-                      color: exo.type_exercice === t ? 'white' : 'var(--text-muted)',
-                    }}>
-                    {icon} {t === 'muscu' ? 'Muscu' : 'Cardio'}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <label className="label">{isCardio ? 'Nom de la séance' : `Exercice ${i + 1}`}</label>
-                  <AutocompleteInput
-                    value={exo.nom}
-                    onChange={(v) => modifierExo(jourActif, i, 'nom', v)}
-                    suggestions={nomsExistants}
-                    placeholder={isCardio ? 'Ex: Sortie natation' : 'Ex: Squat, Développé couché...'}
-                  />
-                </div>
-                <button onClick={() => supprimerExo(jourActif, i)}
-                  className="mt-4 text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
-              </div>
-
-              {isCardio ? (
-                <div>
-                  <label className="label">Activité</label>
-                  <div className="grid grid-cols-2 gap-1">
-                    {ACTIVITES_CARDIO.map((a) => (
-                      <button key={a.id} type="button"
-                        onClick={() => modifierExo(jourActif, i, 'activite_cardio', a.id)}
-                        className="text-left px-2 py-1.5 rounded-lg text-xs"
-                        style={{
-                          background: exo.activite_cardio === a.id ? 'var(--orange)' : 'var(--surface-2)',
-                          color: exo.activite_cardio === a.id ? 'white' : 'var(--text)',
-                        }}>
-                        {a.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="label">Séries</label>
-                    <input type="number" min="1" value={exo.series}
-                      onChange={(e) => modifierExo(jourActif, i, 'series', e.target.value)} className="input" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="label">Reps</label>
-                    <input type="number" min="1" value={exo.repetitions}
-                      onChange={(e) => modifierExo(jourActif, i, 'repetitions', e.target.value)} className="input" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="label">Repos (s)</label>
-                    <input type="number" min="0" step="15" value={exo.repos_secondes}
-                      onChange={(e) => modifierExo(jourActif, i, 'repos_secondes', e.target.value)} className="input" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="label">Poids (kg)</label>
-                    <input type="number" min="0" step="0.5" value={exo.poids_charge_kg || ''}
-                      onChange={(e) => modifierExo(jourActif, i, 'poids_charge_kg', e.target.value)}
-                      placeholder="0" className="input" />
-                  </div>
-                </div>
-              )}
-            </div>
-          )
-        })}
-
-        <div className="flex gap-2">
-          <button onClick={() => ajouterExo(jourActif, 'muscu')}
-            className="flex-1 py-2 rounded-xl text-sm font-medium border-2 border-dashed"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}>
-            + Muscu
-          </button>
-          <button onClick={() => ajouterExo(jourActif, 'cardio')}
-            className="flex-1 py-2 rounded-xl text-sm font-medium border-2 border-dashed"
-            style={{ borderColor: '#3B82F6', color: '#3B82F6' }}>
-            + Cardio
-          </button>
-        </div>
-      </div>
-
-      {/* Résumé */}
-      {Object.keys(exoParJour).length > 0 && (
-        <div className="card py-3">
-          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Résumé</p>
-          <div className="flex flex-col gap-1">
-            {JOURS.filter(j => (exoParJour[j.id] || []).filter(e => e.nom.trim()).length > 0).map(j => {
-              const nb = (exoParJour[j.id] || []).filter(e => e.nom.trim()).length
-              return (
-                <div key={j.id} className="flex justify-between text-sm">
-                  <span style={{ color: 'var(--text)' }}>{j.nom}</span>
-                  <span style={{ color: 'var(--text-muted)' }}>{nb} exercice{nb > 1 ? 's' : ''}</span>
-                </div>
-              )
-            })}
+      {poidsCorps && (exosMuscu.length > 0 || exosCardio.length > 0 || circuits.length > 0) && (
+        <div className="card flex items-center justify-between mb-6 py-3">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>Calories brûlées</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              {kcalMuscuFait > 0 && `Muscu: ${Math.round(kcalMuscuFait)} kcal`}
+              {kcalMuscuFait > 0 && kcalCardioTotal > 0 && ' · '}
+              {kcalCardioTotal > 0 && `Cardio: ${kcalCardioTotal} kcal`}
+              {kcalCircuitTotal > 0 && (kcalMuscuFait > 0 || kcalCardioTotal > 0) && ' · '}
+              {kcalCircuitTotal > 0 && `Circuit: ${kcalCircuitTotal} kcal`}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold" style={{ color: 'var(--orange)' }}>{kcalTotalFait}</p>
+            <p className="text-xs" style={{ color: 'var(--text-faint)' }}>/ {kcalPrevu} kcal prévues (muscu)</p>
           </div>
         </div>
       )}
 
-      <div className="flex gap-2">
-        <button onClick={onAnnuler}
-          className="flex-1 py-3 rounded-xl text-sm font-medium"
-          style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
-          Annuler
-        </button>
-        <button onClick={sauvegarder} disabled={enCours || !nomProg.trim()}
-          className="flex-[2] btn-primary text-sm py-3 disabled:opacity-50">
-          {enCours ? 'Enregistrement...' : edition ? '✓ Enregistrer les modifications' : '✓ Créer le programme'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ======== Page principale ========
-export default function Programmes() {
-  const supabase = createClient()
-  const router = useRouter()
-  const toast = useToast()
-
-  const [userId, setUserId] = useState(null)
-  const [programmes, setProgrammes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [programmeOuvert, setProgrammeOuvert] = useState(null)
-  const [applicationEnCours, setApplicationEnCours] = useState(null)
-  const [nomsExistants, setNomsExistants] = useState([])
-
-  // Mode : null = liste, 'creation' = nouveau, prog = édition
-  const [mode, setMode] = useState(null)
-
-  useEffect(() => { charger() }, [])
-
-  async function charger() {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setUserId(user.id)
-
-    const { data: progs } = await supabase.from('programmes')
-      .select('*, programme_exercices(*, jours(numero, nom))')
-      .or(`est_fixe.eq.true,user_id.eq.${user.id}`)
-      .order('est_fixe', { ascending: false })
-      .order('created_at')
-
-    setProgrammes(progs || [])
-
-    const { data: exos } = await supabase.from('exercices').select('nom').eq('user_id', user.id)
-    const { data: progExos } = await supabase.from('programme_exercices').select('nom')
-    setNomsExistants([...new Set([
-      ...(exos || []).map(e => e.nom),
-      ...(progExos || []).map(e => e.nom),
-    ])].sort())
-
-    setLoading(false)
-  }
-
-  async function appliquerProgramme(prog) {
-    if (!confirm(`Appliquer "${prog.nom}" ? Tes exercices actuels seront remplacés.`)) return
-    setApplicationEnCours(prog.id)
-    await supabase.from('exercices').delete().eq('user_id', userId)
-    const nouveaux = (prog.programme_exercices || []).map((pe) => {
-      const isCardio = pe.type_exercice === 'cardio'
-      return {
-        user_id: userId, jour_id: pe.jour_id, nom: pe.nom,
-        type_exercice: isCardio ? 'cardio' : 'muscu',
-        activite_cardio: isCardio ? (pe.activite_cardio || 'natation') : null,
-        series: pe.series || 3,
-        repetitions: pe.repetitions || 10,
-        repos_secondes: pe.repos_secondes || 60,
-        poids_charge_kg: pe.poids_charge_kg || 0,
-        ordre: pe.ordre,
-      }
-    })
-    if (nouveaux.length > 0) await supabase.from('exercices').insert(nouveaux)
-    setApplicationEnCours(null)
-    toast('Programme appliqué à ta semaine ✓')
-  }
-
-  async function supprimerProgramme(id, nom) {
-    if (!confirm(`Supprimer "${nom}" ?`)) return
-    await supabase.from('programmes').delete().eq('id', id)
-    toast('Programme supprimé')
-    charger()
-  }
-
-  function exercicesParJour(prog) {
-    const groupes = {}
-    prog.programme_exercices?.forEach((pe) => {
-      const num = pe.jours?.numero
-      if (!groupes[num]) groupes[num] = { label: pe.jours?.nom, exos: [] }
-      groupes[num].exos.push(pe)
-    })
-    return Object.entries(groupes).sort(([a], [b]) => Number(a) - Number(b))
-  }
-
-  // Mode formulaire (création ou édition)
-  if (mode !== null) {
-    return (
-      <div>
-        <button onClick={() => setMode(null)} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
-        <FormulaireProgamme
-          userId={userId}
-          supabase={supabase}
-          toast={toast}
-          nomsExistants={nomsExistants}
-          progAEditer={mode === 'creation' ? null : mode}
-          onSave={() => { setMode(null); charger() }}
-          onAnnuler={() => setMode(null)}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <button onClick={() => router.back()} className="text-sm mb-3" style={{ color: 'var(--orange)' }}>← Retour</button>
-      <Header title="Programmes" subtitle="Templates d'entraînement" />
-
       <div className="flex flex-col gap-4">
-        <button onClick={() => setMode('creation')} className="btn-primary w-full">
-          + Créer un nouveau programme
-        </button>
+        {exercices.map((exo) => {
+          const fait = seriesFaites[exo.id] || 0
+          const timerActif = exoActifTimer?.exerciceId === exo.id
+          const isCardio = exo.type_exercice === 'cardio'
+          const activite = ACTIVITES_CARDIO.find(a => a.id === exo.activite_cardio)
+          const termine = isCardio ? fait >= 1 : fait >= exo.series
+          const enEdition = exoEnEdition?.id === exo.id
 
-        <SauvegarderSemaine userId={userId} supabase={supabase} toast={toast} onSave={charger} />
+          return (
+            <div key={exo.id} className="flex flex-col gap-3"
+              data-drag-id={exo.id}
+              draggable
+              onDragStart={() => setDragId(exo.id)}
+              onDragEnter={() => setDropId(exo.id)}
+              onDragEnd={() => { if (dragId && dropId && dragId !== dropId) deplacerExercice(dragId, dropId); setDragId(null); setDropId(null) }}
+              onDragOver={e => e.preventDefault()}
+              style={{
+                opacity: dragId === exo.id ? 0.5 : 1,
+                outline: dropId === String(exo.id) && dragId !== exo.id ? '2px solid var(--orange)' : 'none',
+                borderRadius: '12px',
+              }}>
+              {cardioEnCours?.id === exo.id && (
+                <FormCardio exo={exo} poidsCorps={poidsCorps}
+                  onTerminer={(m) => terminerCardio(exo, m)}
+                  onAnnuler={() => setCardioEnCours(null)} />
+              )}
 
-        {loading ? (
-          <SkeletonListe nb={4} lignes={2} />
+              <div className="card" style={{ opacity: termine && !enEdition ? 0.6 : 1 }}>
+                {enEdition ? (
+                  <form onSubmit={sauvegarderEdition} className="flex flex-col gap-3">
+                    <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Modifier l'exercice</p>
+                    <div>
+                      <label className="label">Nom</label>
+                      <AutocompleteInput value={editNom} onChange={setEditNom} suggestions={nomsExistants} placeholder="Nom" />
+                    </div>
+                    {!isCardio && editNom.trim() && (
+                      <CoachSuggestion nomExercice={editNom} userId={userId} />
+                    )}
+                    {!isCardio && (
+                      <div className="flex gap-2">
+                        <div className="flex-1"><label className="label">Séries</label>
+                          <input type="number" min="1" value={editSeries} onChange={(e) => setEditSeries(e.target.value)} className="input" /></div>
+                        <div className="flex-1"><label className="label">Reps</label>
+                          <input type="number" min="1" value={editRepetitions} onChange={(e) => setEditRepetitions(e.target.value)} className="input" /></div>
+                        <div className="flex-1"><label className="label">Repos (s)</label>
+                          <input type="number" min="0" step="5" value={editRepos} onChange={(e) => setEditRepos(e.target.value)} className="input" /></div>
+                        <div className="flex-1"><label className="label">Poids (kg)</label>
+                          <input type="number" min="0" step="0.5" value={editPoidsCharge} onChange={(e) => setEditPoidsCharge(e.target.value)} className="input" /></div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="label">📝 Note personnelle</label>
+                      <textarea value={editNote} onChange={(e) => setEditNote(e.target.value)}
+                        placeholder="Ex: Genou gauche fragile, prise large, gainage..."
+                        rows={2} className="input resize-none text-sm" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => setExoEnEdition(null)}
+                        className="flex-1 py-2 rounded-xl text-sm font-medium"
+                        style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>Annuler</button>
+                      <button type="submit" className="flex-1 btn-primary text-sm py-2">Enregistrer</button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold" style={{ color: 'var(--text)' }}>{exo.nom}</p>
+                          {isCardio ? (
+                            <span className="text-xs px-2 py-0.5 rounded-full"
+                              style={{ background: '#EFF6FF', color: '#3B82F6' }}>Cardio</span>
+                          ) : (
+                            <Link href={lienProgression(exo)} className="text-xs underline" style={{ color: 'var(--orange)' }}>
+                              Progression →
+                            </Link>
+                          )}
+                        </div>
+                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                          {isCardio
+                            ? activite?.label || exo.activite_cardio
+                            : `${exo.series}×${exo.repetitions}${exo.poids_charge_kg > 0 ? ` · ${exo.poids_charge_kg}kg` : ''} · ${exo.repos_secondes}s`}
+                        </p>
+                        {!isCardio && poidsCorps && (
+                          <p className="text-xs font-medium mt-0.5" style={{ color: 'var(--orange)' }}>
+                            ~{Math.round(kcalExo(exo, exo.series))} kcal
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        {/* Bouton infos (note + technique) → ouvre le drawer */}
+                        {(exo.note || !isCardio) && (
+                          <button onClick={() => setDrawerExo(exo)}
+                            className="text-xs px-2 py-1 rounded-lg flex items-center gap-1"
+                            style={{ background: 'var(--surface-2)', color: exo.note ? 'var(--orange)' : 'var(--text-faint)' }}>
+                            {exo.note ? '📝' : 'ℹ️'}
+                          </button>
+                        )}
+                        <button onClick={() => ouvrirEdition(exo)}
+                          className="text-xs px-2 py-1 rounded-lg"
+                          style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>✏️</button>
+                        {/* Handle drag mobile — touch events uniquement ici */}
+                        <button
+                          style={{ color: 'var(--text-faint)', cursor: 'grab', touchAction: 'none', fontSize: '16px', lineHeight: 1, padding: '0 4px' }}
+                          onTouchStart={e => { e.stopPropagation(); touchDragRef.current = exo.id; setDragId(exo.id) }}
+                          onTouchMove={e => {
+                            e.preventDefault()
+                            const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY)
+                            const card = el?.closest('[data-drag-id]')
+                            if (card) setDropId(card.getAttribute('data-drag-id'))
+                          }}
+                          onTouchEnd={() => {
+                            if (touchDragRef.current && dropId && String(touchDragRef.current) !== String(dropId)) {
+                              deplacerExercice(touchDragRef.current, dropId)
+                            }
+                            touchDragRef.current = null; setDragId(null); setDropId(null)
+                          }}>
+                          ⠿
+                        </button>
+                        <button onClick={() => supprimerExercice(exo.id, exo.nom)} style={{ color: 'var(--text-faint)' }}>✕</button>
+                      </div>
+                    </div>
 
-        ) : (
-          <>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--text-faint)' }}>
-              Programmes prêts à l'emploi
-            </p>
-            {programmes.filter(p => p.est_fixe).map(prog => (
-              <ProgrammeCard key={prog.id} prog={prog}
-                exercicesParJour={exercicesParJour(prog)}
-                ouvert={programmeOuvert === prog.id}
-                onToggle={() => setProgrammeOuvert(programmeOuvert === prog.id ? null : prog.id)}
-                onAppliquer={() => appliquerProgramme(prog)}
-                enCours={applicationEnCours === prog.id}
-              />
-            ))}
+                    {isCardio && !termine && cardioEnCours?.id !== exo.id && (
+                      <button onClick={() => setCardioEnCours(exo)} className="btn-primary text-sm py-2 mt-3 w-full">
+                        Enregistrer ma séance cardio
+                      </button>
+                    )}
+                    {isCardio && termine && <p className="text-sm font-semibold mt-3 text-green-500">✓ Séance enregistrée</p>}
 
-            {programmes.filter(p => !p.est_fixe).length > 0 && (
-              <>
-                <p className="text-xs font-semibold uppercase tracking-wide mt-2" style={{ color: 'var(--text-faint)' }}>
-                  Mes programmes
-                </p>
-                {programmes.filter(p => !p.est_fixe).map(prog => (
-                  <ProgrammeCard key={prog.id} prog={prog}
-                    exercicesParJour={exercicesParJour(prog)}
-                    ouvert={programmeOuvert === prog.id}
-                    onToggle={() => setProgrammeOuvert(programmeOuvert === prog.id ? null : prog.id)}
-                    onAppliquer={() => appliquerProgramme(prog)}
-                    onEditer={() => setMode(prog)}
-                    onSupprimer={() => supprimerProgramme(prog.id, prog.nom)}
-                    enCours={applicationEnCours === prog.id}
-                  />
-                ))}
-              </>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
+                    {!isCardio && (
+                      <div className="mt-3 flex flex-col gap-2">
+                        {/* Toggle assistance */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setModeAssistance(m => ({ ...m, [exo.id]: !m[exo.id] }))}
+                            className="text-xs px-2.5 py-1 rounded-full font-medium transition-all"
+                            style={{
+                              background: modeAssistance[exo.id] ? '#8B5CF6' : 'var(--surface-2)',
+                              color: modeAssistance[exo.id] ? 'white' : 'var(--text-faint)',
+                            }}>
+                            {modeAssistance[exo.id] ? '🤝 Assistance' : '+ Charge'}
+                          </button>
+                          {modeAssistance[exo.id] && (
+                            <p className="text-xs" style={{ color: '#8B5CF6' }}>
+                              Moins d'assistance = progression
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="label">Reps série {fait + 1}</label>
+                            <input type="number" min="1"
+                              value={repsReelles[exo.id] ?? exo.repetitions}
+                              onChange={(e) => setRepsReelles((r) => ({ ...r, [exo.id]: e.target.value }))}
+                              className="input text-sm" />
+                          </div>
+                          <div className="flex-1">
+                            <label className="label">
+                              {modeAssistance[exo.id] ? 'Assistance (kg)' : 'Charge (kg)'}
+                            </label>
+                            <input type="number" step="0.5" min="0"
+                              value={poidsSerieEnCours[exo.id] || ''}
+                              onChange={(e) => setPoidsSerieEnCours((p) => ({ ...p, [exo.id]: e.target.value }))}
+                              className="input text-sm"
+                              placeholder="0"
+                              style={{ borderColor: modeAssistance[exo.id] ? '#8B5CF6' : undefined }} />
+                          </div>
+                          <button onClick={() => terminerSerie(exo)}
+                            className="text-sm py-2 px-4 whitespace-nowrap rounded-xl font-semibold"
+                            style={{
+                              background: termine ? 'var(--surface-2)' : 'var(--orange)',
+                              color: termine ? 'var(--text-muted)' : 'white',
+                            }}>
+                            {termine ? `+ Série ${fait + 1}` : `Série ${fait + 1} ✓`}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {!isCardio && termine && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
+                        ✓ {exo.series} séries prévues — tu peux en ajouter d'autres
+                      </p>
+                    )}
+                    {!isCardio && (
+                      <div className="flex gap-1 mt-3">
+                        {Array.from({ length: Math.max(exo.series, fait) }).map((_, i) => (
+                          <div key={i} className={`flex-1 h-1.5 rounded-full ${i === fait - 1 ? 'animate-pop' : ''}`}
+                            style={{ background: i < fait ? '#22c55e' : 'var(--surface-2)' }} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
 
-// -------- SauvegarderSemaine --------
-function SauvegarderSemaine({ userId, supabase, toast, onSave }) {
-  const [show, setShow] = useState(false)
-  const [nom, setNom] = useState('')
-  const [desc, setDesc] = useState('')
-
-  async function sauvegarder(e) {
-    e.preventDefault()
-    if (!nom.trim() || !userId) return
-    const { data, error } = await supabase.from('programmes').insert([{
-      user_id: userId, nom: nom.trim(), description: desc.trim() || null, est_fixe: false,
-    }]).select().single()
-    if (error) { toast('Erreur', 'error'); return }
-    const { data: exos } = await supabase.from('exercices').select('*').eq('user_id', userId)
-    if (exos?.length > 0) {
-      await supabase.from('programme_exercices').insert(
-        exos.map(e => ({
-          programme_id: data.id, jour_id: e.jour_id, nom: e.nom,
-          type_exercice: e.type_exercice || 'muscu',
-          activite_cardio: e.activite_cardio || null,
-          series: e.series, repetitions: e.repetitions,
-          repos_secondes: e.repos_secondes, poids_charge_kg: e.poids_charge_kg || 0, ordre: e.ordre,
-        }))
-      )
-    }
-    setNom(''); setDesc(''); setShow(false)
-    toast(`"${nom}" sauvegardé ✓`)
-    onSave()
-  }
-
-  if (!show) return (
-    <button onClick={() => setShow(true)}
-      className="w-full py-2.5 rounded-xl text-sm font-medium border"
-      style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}>
-      💾 Sauvegarder ma semaine actuelle comme programme
-    </button>
-  )
-
-  return (
-    <form onSubmit={sauvegarder} className="card flex flex-col gap-3">
-      <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>Sauvegarder la semaine actuelle</p>
-      <input value={nom} onChange={e => setNom(e.target.value)} placeholder="Nom du programme" className="input" required autoFocus />
-      <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="Description (optionnel)" className="input" />
-      <div className="flex gap-2">
-        <button type="button" onClick={() => setShow(false)}
-          className="flex-1 py-2 rounded-xl text-sm font-medium"
-          style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>Annuler</button>
-        <button type="submit" className="flex-1 btn-primary text-sm py-2">Sauvegarder</button>
-      </div>
-    </form>
-  )
-}
-
-// -------- ProgrammeCard --------
-function ProgrammeCard({ prog, exercicesParJour, ouvert, onToggle, onAppliquer, onEditer, onSupprimer, enCours }) {
-  const nbExos = prog.programme_exercices?.length || 0
-  const nbJours = exercicesParJour.length
-
-  return (
-    <div className="card flex flex-col gap-3">
-      <button onClick={onToggle} className="w-full text-left">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-semibold" style={{ color: 'var(--text)' }}>{prog.nom}</p>
-              {prog.est_fixe && (
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ background: 'var(--orange-light)', color: 'var(--orange)' }}>
-                  Officiel
-                </span>
+              {timerActif && !isCardio && (
+                <RestTimer key={`${exo.id}-${fait}`} dureeSecondes={exoActifTimer.duree} onTermine={() => {}} />
               )}
             </div>
-            {prog.description && (
-              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{prog.description}</p>
-            )}
-            <p className="text-xs mt-1" style={{ color: 'var(--text-faint)' }}>
-              {nbJours} jour{nbJours > 1 ? 's' : ''} · {nbExos} exercice{nbExos > 1 ? 's' : ''}
+          )
+        })}
+
+        {exercices.length === 0 && circuits.length === 0 && (
+          <div className="flex flex-col items-center py-10 gap-3 animate-fade-up">
+            <span style={{ fontSize: 48 }}>😴</span>
+            <p className="font-semibold" style={{ color: 'var(--text)' }}>Jour de repos</p>
+            <p className="text-sm text-center" style={{ color: 'var(--text-faint)' }}>
+              Aucun exercice prévu. Profites-en pour récupérer !
             </p>
           </div>
-          <span style={{ color: 'var(--text-faint)' }} className="text-sm">{ouvert ? '▲' : '▼'}</span>
-        </div>
-      </button>
+        )}
 
-      {ouvert && (
-        <div className="flex flex-col gap-3 pt-2 border-t" style={{ borderColor: 'var(--border)' }}>
-          {exercicesParJour.map(([num, { label, exos }]) => (
-            <div key={num}>
-              <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
-              <div className="flex flex-col gap-1">
-                {exos.sort((a, b) => a.ordre - b.ordre).map((exo) => (
-                  <div key={exo.id} className="flex justify-between text-sm">
-                    <span style={{ color: 'var(--text)' }}>{exo.nom}</span>
+        {/* Circuits */}
+        {circuits.map(circuit => {
+          const exosTriés = [...(circuit.circuit_exercices || [])].sort((a, b) => a.ordre - b.ordre)
+          return (
+            <div key={circuit.id} className="card" style={{ borderLeft: '3px solid var(--orange)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-semibold" style={{ color: 'var(--text)' }}>⚡ {circuit.nom}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {circuit.tours} tours · {exosTriés.length} exercices ·{' '}
+                    {circuit.repos_entre_exos === 0 ? 'enchaîné' : `${circuit.repos_entre_exos}s entre exos`}
+                  </p>
+                </div>
+                <button onClick={() => supprimerCircuit(circuit.id, circuit.nom)}
+                  className="text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
+              </div>
+              <div className="flex flex-col gap-1 mb-3">
+                {exosTriés.map((ex, i) => (
+                  <div key={ex.id} className="flex items-center gap-2 text-sm">
+                    <span className="w-4 text-xs text-center" style={{ color: 'var(--orange)' }}>{i + 1}</span>
+                    <span style={{ color: 'var(--text)' }}>{ex.nom}</span>
                     <span style={{ color: 'var(--text-faint)' }}>
-                      {exo.type_exercice === 'cardio'
-                        ? `🏃 ${exo.activite_cardio || 'Cardio'}`
-                        : `${exo.series}×${exo.repetitions}${exo.poids_charge_kg > 0 ? ` · ${exo.poids_charge_kg}kg` : ''}`
-                      }
+                      {ex.repetitions ? `${ex.repetitions} reps` : ''}
+                      {ex.repetitions && ex.duree_secondes ? ' · ' : ''}
+                      {ex.duree_secondes ? `${ex.duree_secondes}s` : ''}
+                      {!ex.repetitions && !ex.duree_secondes ? '—' : ''}
                     </span>
                   </div>
                 ))}
               </div>
+              <button
+                onClick={() => setCircuitEnCours({ circuit, exos: exosTriés })}
+                className="w-full btn-primary py-2 text-sm font-semibold">
+                ▶ Démarrer le circuit
+              </button>
             </div>
-          ))}
+          )
+        })}
+      </div>
 
-          <div className="flex gap-2 pt-1 flex-wrap">
-            <button onClick={onAppliquer} disabled={enCours}
-              className="flex-1 btn-primary text-sm py-2">
-              {enCours ? 'Application...' : 'Appliquer à ma semaine'}
-            </button>
-            {onEditer && (
-              <button onClick={onEditer}
-                className="px-3 py-2 rounded-xl text-sm font-medium"
-                style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
-                ✏️ Modifier
+      {!showForm && !exoEnEdition ? (
+        <button onClick={() => setShowForm(true)} className="btn-primary w-full mt-6">+ Ajouter un exercice</button>
+      ) : showForm && (
+        <form onSubmit={typeForm === 'circuit' ? ajouterCircuit : ajouterExercice} className="card mt-6 flex flex-col gap-3">
+          {/* Toggle Muscu / Cardio / Circuit */}
+          <div className="flex gap-2">
+            {[['muscu', '🏋️ Muscu'], ['cardio', '🏃 Cardio'], ['circuit', '⚡ Circuit']].map(([t, label]) => (
+              <button key={t} type="button" onClick={() => setTypeForm(t)}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold"
+                style={{
+                  background: typeForm === t ? 'var(--orange)' : 'var(--surface-2)',
+                  color: typeForm === t ? 'white' : 'var(--text-muted)',
+                }}>
+                {label}
               </button>
-            )}
-            {onSupprimer && (
-              <button onClick={onSupprimer}
-                className="px-3 py-2 rounded-xl text-sm font-medium text-red-500"
-                style={{ background: 'var(--surface-2)' }}>
-                Suppr.
-              </button>
-            )}
+            ))}
           </div>
-        </div>
+
+          {typeForm !== 'circuit' && (
+            <div>
+              <label className="label">Nom</label>
+              <AutocompleteInput value={nom} onChange={setNom} suggestions={nomsExistants}
+                placeholder={typeForm === 'cardio' ? 'Ex: Sortie natation matinale' : 'Ex: Squat, Développé couché...'} />
+            </div>
+          )}
+
+          {typeForm === 'muscu' && nom.trim() && (
+              <CoachSuggestion nomExercice={nom} userId={userId} />
+          )}
+
+          {typeForm === 'cardio' ? (
+            <div>
+              <label className="label">Activité</label>
+              <div className="grid grid-cols-2 gap-2">
+                {ACTIVITES_CARDIO.map((a) => (
+                  <button key={a.id} type="button" onClick={() => setActiviteCardio(a.id)}
+                    className="text-left px-3 py-2 rounded-xl text-sm"
+                    style={{
+                      background: activiteCardio === a.id ? 'var(--orange)' : 'var(--surface-2)',
+                      color: activiteCardio === a.id ? 'white' : 'var(--text)',
+                    }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : typeForm === 'circuit' ? (
+            <>
+              {/* Circuits existants à réutiliser */}
+              {circuitsExistants.length > 0 && (
+                <div>
+                  <label className="label">Réutiliser un circuit existant</label>
+                  <div className="flex flex-col gap-2">
+                    {circuitsExistants.map(c => (
+                      <button key={c.id} type="button"
+                        onClick={() => reutiliserCircuit(c)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-left"
+                        style={{ background: 'var(--surface-2)' }}>
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>⚡ {c.nom}</p>
+                          <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                            {c.tours} tours · {(c.circuit_exercices || []).length} exercices
+                          </p>
+                        </div>
+                        <span className="text-xs font-medium" style={{ color: 'var(--orange)' }}>+ Ajouter</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                    <span className="text-xs" style={{ color: 'var(--text-faint)' }}>ou créer nouveau</span>
+                    <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+                  </div>
+                </div>
+              )}
+              {/* Nom du circuit */}
+              <div>
+                <label className="label">Nom du circuit</label>
+                <input type="text" value={nomCircuit} onChange={e => setNomCircuit(e.target.value)}
+                  className="input" placeholder="Ex: Circuit abdos, Cardio tabata..." required />
+              </div>
+
+              {/* Config globale */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="label">Tours</label>
+                  <input type="number" min="1" max="10" value={toursCircuit}
+                    onChange={e => setToursCircuit(e.target.value)}
+                    onBlur={e => setToursCircuit(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                    className="input" />
+                </div>
+                <div className="flex-1">
+                  <label className="label">Repos/tours (s)</label>
+                  <input type="number" min="0" step="5" value={reposEntreTours}
+                    onChange={e => setReposEntreTours(e.target.value)}
+                    onBlur={e => setReposEntreTours(Math.max(0, Number(e.target.value) || 0))}
+                    className="input" />
+                </div>
+              </div>
+
+              {/* Repos entre exercices */}
+              <div>
+                <label className="label">Repos entre exercices (s) — 0 = enchaîner</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[0, 10, 15, 20, 30].map(s => (
+                    <button key={s} type="button" onClick={() => setReposEntreExos(s)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium"
+                      style={{
+                        background: reposEntreExos === s ? 'var(--orange)' : 'var(--surface-2)',
+                        color: reposEntreExos === s ? 'white' : 'var(--text-muted)',
+                      }}>
+                      {s === 0 ? '⚡ 0s' : `${s}s`}
+                    </button>
+                  ))}
+                  <input type="number" min="0" max="120" value={reposEntreExos}
+                    onChange={e => setReposEntreExos(e.target.value)}
+                    onBlur={e => setReposEntreExos(Math.max(0, Number(e.target.value) || 0))}
+                    className="input w-20 text-sm" />
+                </div>
+              </div>
+
+              {/* Exercices du circuit */}
+              <div>
+                <label className="label">Exercices du circuit</label>
+                <div className="flex flex-col gap-2">
+                  {exosCircuitForm.map((ex, i) => (
+                    <div key={ex.id} className="rounded-xl p-3 flex flex-col gap-2"
+                      style={{ background: 'var(--surface-2)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold w-5 text-center"
+                          style={{ color: 'var(--orange)' }}>{i + 1}</span>
+                        <input type="text" value={ex.nom}
+                          onChange={e => modifierExoCircuit(ex.id, 'nom', e.target.value)}
+                          className="input flex-1 text-sm" placeholder="Nom de l'exercice" />
+                        {exosCircuitForm.length > 2 && (
+                          <button type="button" onClick={() => supprimerExoCircuit(ex.id)}
+                            className="text-sm" style={{ color: 'var(--text-faint)' }}>✕</button>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>
+                            Reps (optionnel)
+                          </label>
+                          <input type="number" min="1" value={ex.repetitions}
+                            onChange={e => modifierExoCircuit(ex.id, 'repetitions', e.target.value)}
+                            className="input text-sm" placeholder="—" />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-xs mb-1 block" style={{ color: 'var(--text-faint)' }}>
+                            Durée en s (optionnel)
+                          </label>
+                          <input type="number" min="5" step="5" value={ex.duree_secondes}
+                            onChange={e => modifierExoCircuit(ex.id, 'duree_secondes', e.target.value)}
+                            className="input text-sm" placeholder="—" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={ajouterExoCircuit}
+                    className="text-sm py-2 rounded-xl"
+                    style={{ background: 'var(--surface-2)', color: 'var(--orange)' }}>
+                    + Ajouter un exercice au circuit
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <div className="flex-1"><label className="label">Séries</label>
+                  <input type="number" min="1" value={series} onChange={(e) => setSeries(e.target.value)} className="input" /></div>
+                <div className="flex-1"><label className="label">Répétitions</label>
+                  <input type="number" min="1" value={repetitions} onChange={(e) => setRepetitions(e.target.value)} className="input" /></div>
+                <div className="flex-1"><label className="label">Repos (s)</label>
+                  <input type="number" min="0" step="5" value={repos} onChange={(e) => setRepos(e.target.value)} className="input" /></div>
+              </div>
+              <div>
+                <label className="label">Poids par défaut (kg) — optionnel</label>
+                <input type="number" min="0" step="0.5" value={poidsCharge}
+                  onChange={(e) => setPoidsCharge(e.target.value)} className="input" placeholder="Ex: 20" />
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setShowForm(false)}
+              className="flex-1 py-2 rounded-xl text-sm font-medium"
+              style={{ background: 'var(--surface-2)', color: 'var(--text)' }}>
+              Annuler
+            </button>
+            <button type="submit" className="flex-1 btn-primary">Ajouter</button>
+          </div>
+        </form>
       )}
     </div>
+
+    {/* Drawer infos exercice : note + technique */}
+    <Drawer
+      ouvert={!!drawerExo}
+      onFermer={() => setDrawerExo(null)}
+      titre={drawerExo?.nom || ''}>
+      {drawerExo && (
+        <div className="flex flex-col gap-4">
+          {/* Note */}
+          {drawerExo.note ? (
+            <div className="rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
+              <p className="text-xs font-semibold mb-1" style={{ color: 'var(--orange)' }}>📝 Ta note</p>
+              <p className="text-sm italic" style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>{drawerExo.note}</p>
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: 'var(--text-faint)' }}>
+              Aucune note pour cet exercice. Ajoutes-en une via ✏️ pour noter tes sensations ou tes indications techniques.
+            </p>
+          )}
+
+          {/* Technique */}
+          {drawerExo.type_exercice !== 'cardio' && (
+            <div>
+              <GifExercice nomExercice={drawerExo.nom} />
+            </div>
+          )}
+        </div>
+      )}
+    </Drawer>
+
+    {/* Mode circuit — plein écran, après le Drawer */}
+    {circuitEnCours && (
+      <CircuitMode
+        circuit={circuitEnCours.circuit}
+        exosCircuit={circuitEnCours.exos}
+        userId={userId}
+        poidsCorps={poidsCorps}
+        onTerminer={(kcalCircuit) => {
+          setCircuitEnCours(null)
+          if (kcalCircuit > 0) setKcalCircuitTotal(prev => prev + kcalCircuit)
+          chargerTout()
+        }}
+      />
+    )}
+    </>
   )
 }
