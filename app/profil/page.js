@@ -50,6 +50,7 @@ export default function Profil() {
   const [loading, setLoading] = useState(true)
   const [editionProfil, setEditionProfil] = useState(false)
   const [objectifPas, setObjectifPas] = useState(8000)
+  const [modeNutrition, setModeNutrition] = useState(true)
   const [douleurs, setDouleurs] = useState([])
   const [analyseDouleurs, setAnalyseDouleurs] = useState(null)
   const [loadingAnalyse, setLoadingAnalyse] = useState(false)
@@ -92,6 +93,7 @@ export default function Profil() {
       setNiveauActivite(profil.niveau_activite); setObjectif(profil.objectif)
       setProfilId(profil.id)
       if (profil.objectif_pas) setObjectifPas(profil.objectif_pas)
+      setModeNutrition(profil.mode_nutrition ?? true)
     }
 
     // Calories consommées aujourd'hui
@@ -275,6 +277,7 @@ export default function Profil() {
       ...(profilId ? { id: profilId } : {}),
       user_id: userId, age: Number(age), sexe, niveau_activite: niveauActivite, objectif,
       objectif_pas: Number(objectifPas) || 8000,
+      mode_nutrition: modeNutrition,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id' })
     setEditionProfil(false)
@@ -549,6 +552,34 @@ export default function Profil() {
       {/* Apparence + Objectif de pas */}
       <div className="card mt-4 flex flex-col gap-4">
         <ThemeToggle />
+
+        {/* Mode nutrition */}
+        <div>
+          <p className="label mb-2">Modules actifs</p>
+          <button onClick={async () => {
+            const nouveau = !modeNutrition
+            setModeNutrition(nouveau)
+            localStorage.setItem('fit_tracker_prefs', JSON.stringify({ mode_nutrition: nouveau }))
+            if (userId) await supabase.from('profil').update({ mode_nutrition: nouveau }).eq('user_id', userId)
+          }}
+            className="flex items-center justify-between w-full px-3 py-3 rounded-xl"
+            style={{ background: 'var(--surface-2)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-lg">🍽️</span>
+              <div className="text-left">
+                <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>Suivi nutrition</p>
+                <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                  Repas, calories, macros
+                </p>
+              </div>
+            </div>
+            <div className="w-11 h-6 rounded-full relative transition-all flex-shrink-0"
+              style={{ background: modeNutrition ? 'var(--orange)' : 'var(--border)' }}>
+              <div className="w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm"
+                style={{ left: modeNutrition ? '22px' : '2px' }} />
+            </div>
+          </button>
+        </div>
         <div>
           <label className="label">Objectif de pas quotidien</label>
           <div className="flex gap-2 flex-wrap">
