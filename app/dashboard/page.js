@@ -7,6 +7,7 @@ import Header from '@/app/components/Header'
 import JaugeCalories from '@/app/components/JaugeCalories'
 import GoogleFitSteps from '@/app/components/GoogleFitSteps'
 import BilanHebdo from '@/app/components/BilanHebdo'
+import { usePreferences } from '@/lib/usePreferences'
 import { SkeletonCard, SkeletonJauge } from '@/app/components/Skeleton'
 import { ErreurChargement } from '@/app/components/Erreur'
 
@@ -36,6 +37,7 @@ const TYPES_REPAS = [
 
 export default function Dashboard() {
   const supabase = createClient()
+  const { prefs } = usePreferences()
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
@@ -267,7 +269,7 @@ export default function Dashboard() {
       />
 
       {/* Jauge calories */}
-      {caloriesCible && (
+      {prefs.mode_nutrition && caloriesCible && (
         <div className="mb-4">
           <JaugeCalories consomme={caloriesConsommees} objectif={caloriesCible} />
         </div>
@@ -314,36 +316,38 @@ export default function Dashboard() {
       </Link>
 
       {/* Carte repas du jour */}
-      <Link href="/repas">
-        <div className="card mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🍽️</span>
-              <div>
-                <p className="font-semibold" style={{ color: 'var(--text)' }}>Repas</p>
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                  {repas.length} repas · {caloriesConsommees} kcal
-                </p>
-              </div>
-            </div>
-            <span style={{ color: 'var(--text-faint)' }}>→</span>
-          </div>
-          <div className="flex gap-1.5 mt-2">
-            {TYPES_REPAS.map(t => {
-              const fait = repas.some(r => r.type === t.value)
-              return (
-                <div key={t.value} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
-                  style={{ background: fait ? 'var(--orange-light)' : 'var(--surface-2)' }}>
-                  <span style={{ opacity: fait ? 1 : 0.4 }}>{t.icon}</span>
-                  <span className="text-xs" style={{ color: fait ? 'var(--orange)' : 'var(--text-faint)' }}>
-                    {t.label}
-                  </span>
+      {prefs.mode_nutrition && (
+        <Link href="/repas">
+          <div className="card mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🍽️</span>
+                <div>
+                  <p className="font-semibold" style={{ color: 'var(--text)' }}>Repas</p>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    {repas.length} repas · {caloriesConsommees} kcal
+                  </p>
                 </div>
-              )
-            })}
+              </div>
+              <span style={{ color: 'var(--text-faint)' }}>→</span>
+            </div>
+            <div className="flex gap-1.5 mt-2">
+              {TYPES_REPAS.map(t => {
+                const fait = repas.some(r => r.type === t.value)
+                return (
+                  <div key={t.value} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-lg"
+                    style={{ background: fait ? 'var(--orange-light)' : 'var(--surface-2)' }}>
+                    <span style={{ opacity: fait ? 1 : 0.4 }}>{t.icon}</span>
+                    <span className="text-xs" style={{ color: fait ? 'var(--orange)' : 'var(--text-faint)' }}>
+                      {t.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      </Link>
+        </Link>
+      )}
 
       {/* Carte poids du jour */}
       <Link href="/profil">
