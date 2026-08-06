@@ -15,16 +15,26 @@ export default function ReconnaissancePhoto({ onResultat, onFermer }) {
   function onImageChoisie(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    setMimeType(file.type || 'image/jpeg')
+    setMimeType('image/jpeg')
     const url = URL.createObjectURL(file)
     setImageUrl(url)
 
-    const reader = new FileReader()
-    reader.onload = (ev) => {
-      const base64 = ev.target.result.split(',')[1]
+    // Compresser l'image avant envoi (max 1200px, qualité 0.7)
+    const img = new Image()
+    img.onload = () => {
+      const MAX = 1200
+      let w = img.width, h = img.height
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX }
+        else { w = Math.round(w * MAX / h); h = MAX }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = w; canvas.height = h
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+      const base64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1]
       setImageBase64(base64)
     }
-    reader.readAsDataURL(file)
+    img.src = url
     setEtape('analyse')
   }
 
