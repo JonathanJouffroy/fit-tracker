@@ -10,6 +10,7 @@ import Header from '@/app/components/Header'
 import { useToast } from '@/app/components/Toast'
 import { SkeletonJauge, SkeletonGraphique, SkeletonListe } from '@/app/components/Skeleton'
 import ThemeToggle from '@/app/components/ThemeToggle'
+import { usePreferences } from '@/lib/usePreferences'
 
 function calculerIMC(poids, taille) {
   const tailleM = taille / 100
@@ -32,6 +33,7 @@ function labelJour(dateStr) {
 
 export default function Profil() {
   const supabase = createClient()
+  const { prefs } = usePreferences()
   const router = useRouter()
   const [userId, setUserId] = useState(null)
   const [poids, setPoids] = useState('')
@@ -307,7 +309,7 @@ export default function Profil() {
       ) : (
         <>
           {/* Jauge calories du jour */}
-          {resultatCalories && !editionProfil && (
+          {prefs.mode_nutrition && resultatCalories && !editionProfil && (
             <div className="mb-6">
               <JaugeCalories consomme={caloriesConsommees} objectif={resultatCalories.caloriesCible} />
               <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3 text-xs justify-center" style={{ color: "var(--text-muted)" }}>
@@ -378,7 +380,7 @@ export default function Profil() {
           )}
 
           {/* Graphique 7 derniers jours */}
-          {calories7jours.length > 0 && (
+          {prefs.mode_nutrition && calories7jours.length > 0 && (
             <div className="card mb-4">
               <p className="font-semibold text-sm mb-3">7 derniers jours</p>
               <div className="flex items-end gap-1 h-28">
@@ -411,7 +413,7 @@ export default function Profil() {
           )}
 
           {/* Liste mois en cours */}
-          {caloriesMois.length > 0 && (
+          {prefs.mode_nutrition && caloriesMois.length > 0 && (
             <div className="card mb-6">
               <p className="font-semibold text-sm mb-3">Mois en cours</p>
               <div className="flex flex-col gap-2">
