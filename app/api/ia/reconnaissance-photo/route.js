@@ -15,12 +15,12 @@ export async function POST(request) {
     const apiKey = process.env.GOOGLE_AI_KEY
     if (!apiKey) return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
 
-    const prompt = `Analyse cette photo de repas. Identifie les aliments, estime les quantités en grammes et les macros nutritionnelles.
+    const prompt = `Analyse cette photo de repas et réponds IMMÉDIATEMENT avec un objet JSON. PAS de texte, PAS de calculs, PAS d'explication. UNIQUEMENT le JSON.
 
-Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, sans markdown :
-{"description":"une phrase décrivant le plat","aliments":[{"nom":"nom aliment","quantite_g":150,"kcal":200,"proteines_g":20,"glucides_g":15,"lipides_g":5,"confiance":"haute"}],"total":{"kcal":200,"proteines_g":20,"glucides_g":15,"lipides_g":5},"note":""}
+Format exact :
+{"description":"description du plat","aliments":[{"nom":"nom","quantite_g":150,"kcal":200,"proteines_g":20,"glucides_g":15,"lipides_g":5,"confiance":"haute"}],"total":{"kcal":200,"proteines_g":20,"glucides_g":15,"lipides_g":5},"note":""}
 
-Valeurs de confiance possibles : haute, moyenne, faible.`
+Commence ta réponse par { et termine par }`
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
@@ -34,7 +34,7 @@ Valeurs de confiance possibles : haute, moyenne, faible.`
               { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
             ]
           }],
-          generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
+          generationConfig: { temperature: 0.1, maxOutputTokens: 4000 },
         }),
       }
     )
