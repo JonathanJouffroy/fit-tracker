@@ -15,32 +15,12 @@ export async function POST(request) {
     const apiKey = process.env.GOOGLE_AI_KEY
     if (!apiKey) return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
 
-    const prompt = `Tu es un nutritionniste expert en analyse visuelle d'aliments. Analyse cette photo d'assiette ou de repas.
+    const prompt = `Analyse cette photo de repas. Identifie les aliments, estime les quantités en grammes et les macros nutritionnelles.
 
-Identifie chaque aliment visible, estime les quantités visuellement (en grammes), et calcule les macros.
+Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ou après, sans markdown :
+{"description":"une phrase décrivant le plat","aliments":[{"nom":"nom aliment","quantite_g":150,"kcal":200,"proteines_g":20,"glucides_g":15,"lipides_g":5,"confiance":"haute"}],"total":{"kcal":200,"proteines_g":20,"glucides_g":15,"lipides_g":5},"note":""}
 
-Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
-{
-  "description": "Description courte de l'assiette (1 phrase)",
-  "aliments": [
-    {
-      "nom": "Blanc de poulet grillé",
-      "quantite_g": 180,
-      "kcal": 297,
-      "proteines_g": 56,
-      "glucides_g": 0,
-      "lipides_g": 5,
-      "confiance": "haute" | "moyenne" | "faible"
-    }
-  ],
-  "total": {
-    "kcal": 526,
-    "proteines_g": 60,
-    "glucides_g": 42,
-    "lipides_g": 6
-  },
-  "note": "Note optionnelle sur la précision ou des éléments difficiles à identifier"
-}`
+Valeurs de confiance possibles : haute, moyenne, faible.`
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
@@ -54,7 +34,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
               { inline_data: { mime_type: mimeType || 'image/jpeg', data: imageBase64 } }
             ]
           }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 1000 },
+          generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
         }),
       }
     )
