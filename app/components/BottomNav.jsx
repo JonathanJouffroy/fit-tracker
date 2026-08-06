@@ -1,20 +1,24 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { usePreferences } from '@/lib/usePreferences'
 
-const tabs = [
-  { href: '/dashboard', label: "Aujourd'hui", icon: '📅' },
-  { href: '/', label: 'Séances', icon: '🏋️' },
-  { href: '/progression', label: 'Progrès', icon: '📈' },
-  { href: '/repas', label: 'Repas', icon: '🍽️' },
-  { href: '/profil', label: 'Profil', icon: '⚖️' },
+const ALL_TABS = [
+  { href: '/dashboard', label: "Aujourd'hui", icon: '📅', nutrition: false },
+  { href: '/', label: 'Séances', icon: '🏋️', nutrition: false },
+  { href: '/progression', label: 'Progrès', icon: '📈', nutrition: false },
+  { href: '/repas', label: 'Repas', icon: '🍽️', nutrition: true },
+  { href: '/profil', label: 'Profil', icon: '⚖️', nutrition: false },
 ]
 
 const PAGES_SANS_NAV = ['/login', '/onboarding']
 
 export default function BottomNav() {
   const pathname = usePathname()
+  const { prefs } = usePreferences()
   if (PAGES_SANS_NAV.some((p) => pathname.startsWith(p))) return null
+
+  const tabs = ALL_TABS.filter(t => !t.nutrition || prefs.mode_nutrition)
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto"
