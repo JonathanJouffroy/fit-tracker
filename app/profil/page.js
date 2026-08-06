@@ -737,6 +737,11 @@ export default function Profil() {
         style={{ background: 'var(--surface-2)', color: '#ef4444', border: '1px solid #fee2e2' }}>
         Déconnexion
       </button>
+
+      {/* Version */}
+      <p className="text-center text-xs mt-4 mb-2" style={{ color: 'var(--text-faint)' }}>
+        Fit Tracker v1.8.0
+      </p>
     </div>
   )
 }
