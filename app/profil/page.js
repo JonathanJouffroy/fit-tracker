@@ -39,6 +39,7 @@ export default function Profil() {
   const [poids, setPoids] = useState('')
   const [taille, setTaille] = useState('')
   const [historique, setHistorique] = useState([])
+  const [showToutHistorique, setShowToutHistorique] = useState(false)
   const [age, setAge] = useState('')
   const [sexe, setSexe] = useState('homme')
   const [niveauActivite, setNiveauActivite] = useState('modere')
@@ -530,6 +531,13 @@ export default function Profil() {
               <p className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
                 Historique du poids ({historique.length} mesures)
               </p>
+              {historique.length > 3 && (
+                <button onClick={() => setShowToutHistorique(v => !v)}
+                  className="text-xs px-2.5 py-1 rounded-full"
+                  style={{ background: 'var(--surface-2)', color: 'var(--orange)' }}>
+                  {showToutHistorique ? 'Réduire' : `Voir tout (${historique.length})`}
+                </button>
+              )}
             </div>
             {historique.length === 0 ? (
               <p className="text-center py-4" style={{ color: 'var(--text-faint)' }}>Aucune mesure enregistrée.</p>
@@ -565,10 +573,10 @@ export default function Profil() {
 
                 {/* Liste */}
                 <div className="flex flex-col gap-2">
-                  {historique.map((m, i) => {
+                  {(showToutHistorique ? historique : historique.slice(0, 3)).map((m, i) => {
                     const imc = calculerIMC(m.poids_kg, m.taille_cm)
                     const c = categorieIMC(imc)
-                    const suivant = historique[i + 1] // mesure précédente (ordre desc)
+                    const suivant = historique[i + 1]
                     const delta = suivant ? Math.round((m.poids_kg - suivant.poids_kg) * 10) / 10 : null
                     return (
                       <div key={m.id} className="card flex items-center justify-between py-2.5">
@@ -608,6 +616,12 @@ export default function Profil() {
                       </div>
                     )
                   })}
+                  {!showToutHistorique && historique.length > 3 && (
+                    <button onClick={() => setShowToutHistorique(true)}
+                      className="text-xs text-center py-2" style={{ color: 'var(--text-faint)' }}>
+                      + {historique.length - 3} mesures supplémentaires
+                    </button>
+                  )}
                 </div>
               </>
             )}
