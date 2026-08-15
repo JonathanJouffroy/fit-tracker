@@ -82,7 +82,6 @@ export default function Profil() {
     const { data: mesures } = await supabase.from('mesures').select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(10)
     setHistorique(mesures || [])
     const derniereMesure = mesures?.[0]
     if (derniereMesure) { setPoids(derniereMesure.poids_kg); setTaille(derniereMesure.taille_cm) }
@@ -527,25 +526,90 @@ export default function Profil() {
 
           {/* Historique mesures */}
           <div>
-            <p className="text-sm font-semibold mb-2" style={{ color: "var(--text-muted)" }}>Historique des mesures</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
+                Historique du poids ({historique.length} mesures)
+              </p>
+            </div>
             {historique.length === 0 ? (
               <p className="text-center py-4" style={{ color: 'var(--text-faint)' }}>Aucune mesure enregistrée.</p>
             ) : (
-              <div className="flex flex-col gap-2">
-                {historique.map((m) => {
-                  const imc = calculerIMC(m.poids_kg, m.taille_cm)
-                  const c = categorieIMC(imc)
-                  return (
-                    <div key={m.id} className="card flex items-center justify-between py-3">
-                      <div>
-                        <p className="font-medium">{m.poids_kg} kg · {m.taille_cm} cm</p>
-                        <p className="text-xs" style={{ color: 'var(--text-faint)' }}>{new Date(m.date_mesure).toLocaleDateString('fr-FR')}</p>
-                      </div>
-                      <p className={`font-semibold ${c.color}`}>{imc.toFixed(1)}</p>
+              <>
+                {/* Mini graphique évolution */}
+                {historique.length >= 2 && (
+                  <div className="card mb-3 py-3">
+                    <div className="flex items-end gap-1" style={{ height: 60 }}>
+                      {[...historique].reverse().map((m, i, arr) => {
+                        const min = Math.min(...arr.map(x => x.poids_kg))
+                        const max = Math.max(...arr.map(x => x.poids_kg))
+                        const range = max - min || 1
+                        const h = Math.round(((m.poids_kg - min) / range) * 48) + 8
+                        return (
+                          <div key={m.id} className="flex-1 flex flex-col items-center gap-1">
+                            <div className="w-full rounded-t"
+                              style={{ height: h, background: i === arr.length - 1 ? 'var(--orange)' : 'var(--surface-2)' }} />
+                          </div>
+                        )
+                      })}
                     </div>
-                  )
-                })}
-              </div>
+                    <div className="flex justify-between mt-1">
+                      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                        {new Date([...historique].reverse()[0]?.date_mesure + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                      </p>
+                      <p className="text-xs" style={{ color: 'var(--text-faint)' }}>
+                        Aujourd'hui
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Liste */}
+                <div className="flex flex-col gap-2">
+                  {historique.map((m, i) => {
+                    const imc = calculerIMC(m.poids_kg, m.taille_cm)
+                    const c = categorieIMC(imc)
+                    const suivant = historique[i + 1] // mesure précédente (ordre desc)
+                    const delta = suivant ? Math.round((m.poids_kg - suivant.poids_kg) * 10) / 10 : null
+                    return (
+                      <div key={m.id} className="card flex items-center justify-between py-2.5">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold" style={{ color: 'var(--text)' }}>{m.poids_kg} kg</p>
+                            {delta !== null && (
+                              <span className="text-xs font-medium px-1.5 py-0.5 rounded-full"
+                                style={{
+                                  background: delta < 0 ? '#dcfce7' : delta > 0 ? '#fee2e2' : 'var(--surface-2)',
+                                  color: delta < 0 ? '#16a34a' : delta > 0 ? '#ef4444' : 'var(--text-faint)',
+                                }}>
+                                {delta > 0 ? `+${delta}` : delta}kg
+                              </span>
+                            )}
+                            {i === 0 && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full"
+                                style={{ background: 'var(--orange-light)', color: 'var(--orange)' }}>
+                                Actuel
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-faint)' }}>
+                            {new Date(m.date_mesure + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
+                            {' · '}IMC {imc.toFixed(1)} <span className={c.color}>({c.label})</span>
+                          </p>
+                        </div>
+                        {i !== 0 && (
+                          <button onClick={async () => {
+                            if (!confirm('Supprimer cette mesure ?')) return
+                            await supabase.from('mesures').delete().eq('id', m.id)
+                            setHistorique(prev => prev.filter(x => x.id !== m.id))
+                          }}
+                            className="text-sm ml-2 flex-shrink-0"
+                            style={{ color: 'var(--text-faint)' }}>✕</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )}
           </div>
         </>
