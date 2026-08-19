@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseGroqJson } from '@/lib/parseGroqJson'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
@@ -61,7 +62,7 @@ Sois concret, bienveillant et prudent. Si la douleur est forte ou répétée, su
 
     const data = await res.json()
     const texte = data.choices?.[0]?.message?.content || ''
-    const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
+    const json = parseGroqJson(texte)
     return NextResponse.json({ analyse: json })
   } catch (err) {
     console.error('Analyse douleurs error:', err)
