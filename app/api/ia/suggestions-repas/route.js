@@ -55,8 +55,8 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3.6-27b',
-        max_tokens: 1500,
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        max_tokens: 4000,
         temperature: 0.7,
         messages: [
           { role: 'system', content: 'Tu es un nutritionniste expert. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.' },
