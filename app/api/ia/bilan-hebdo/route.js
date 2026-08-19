@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseGroqJson } from '@/lib/parseGroqJson'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
@@ -99,7 +100,7 @@ Génère un bilan hebdomadaire personnalisé, bienveillant et motivant. Réponds
 
     const data = await res.json()
     const texte = data.choices?.[0]?.message?.content || ''
-    const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
+    const json = parseGroqJson(texte)
     return NextResponse.json({ bilan: json })
   } catch (err) {
     console.error('Bilan hebdo error:', err)
