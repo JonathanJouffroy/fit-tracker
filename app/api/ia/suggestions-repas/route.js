@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { parseGroqJson } from '@/lib/parseGroqJson'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
@@ -72,7 +73,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
 
     const data = await res.json()
     const texte = data.choices?.[0]?.message?.content || ''
-    const json = JSON.parse(texte.replace(/```json|```/g, '').trim())
+    const json = parseGroqJson(texte)
     return NextResponse.json({ suggestions: json })
   } catch (err) {
     console.error('Suggestions repas error:', err)
