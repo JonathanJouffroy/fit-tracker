@@ -81,7 +81,7 @@ Génère un bilan hebdomadaire personnalisé, bienveillant et motivant. Réponds
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'qwen/qwen3.6-27b',
         max_tokens: 1000,
         temperature: 0.4,
         messages: [
