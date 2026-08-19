@@ -47,7 +47,7 @@ Sois concret, bienveillant et prudent. Si la douleur est forte ou répétée, su
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'qwen/qwen3.6-27b',
         max_tokens: 800,
         temperature: 0.3,
         messages: [
