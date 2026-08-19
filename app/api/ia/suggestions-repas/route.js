@@ -73,6 +73,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
 
     const data = await res.json()
     const texte = data.choices?.[0]?.message?.content || ''
+    console.log('Qwen raw response:', texte.slice(0, 500))
     const json = parseGroqJson(texte)
     return NextResponse.json({ suggestions: json })
   } catch (err) {
