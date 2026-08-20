@@ -55,7 +55,7 @@ Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises mar
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        model: 'openai/gpt-oss-20b',
         max_tokens: 4000,
         temperature: 0.7,
         messages: [
