@@ -10,36 +10,43 @@ export async function POST(request) {
     const { data: { user }, error } = await supabase.auth.getUser()
     if (error || !user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
-    const { douleurs } = await request.json()
-    if (!douleurs?.length) return NextResponse.json({ analyse: null })
+    const { ingredients, objectifLabel, typeLabel, caloriesRestantes, profil } = await request.json()
+    if (!ingredients?.trim()) return NextResponse.json({ error: 'Ingrédients manquants' }, { status: 400 })
+
+    const prompt = `Tu es un nutritionniste expert. L'utilisateur a les ingrédients suivants dans son frigo : "${ingredients}".
+
+Son objectif est : ${objectifLabel}.
+Type de repas : ${typeLabel}.
+${caloriesRestantes !== null ? `Calories restantes aujourd'hui : ${Math.round(caloriesRestantes)} kcal.` : ''}
+${profil ? `Profil : ${profil.sexe}, ${profil.age} ans, objectif ${profil.objectif}.` : ''}
+
+Propose exactement 3 recettes simples et rapides à faire avec ces ingrédients (tu peux supposer des condiments de base : sel, poivre, huile, ail, oignon). Pour chaque recette, donne une estimation précise des macros ET les quantités de chaque ingrédient.
+
+Réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown :
+[
+  {
+    "nom": "Nom du repas",
+    "description": "Description courte (1 phrase)",
+    "kcal": 450,
+    "proteines": 35,
+    "glucides": 40,
+    "lipides": 12,
+    "temps": "15 min",
+    "ingredients_utilises": [
+      { "nom": "Poulet", "quantite": "150g" },
+      { "nom": "Riz", "quantite": "80g cru" },
+      { "nom": "Brocolis", "quantite": "200g" },
+      { "nom": "Huile d'olive", "quantite": "1 c.à.s" }
+    ],
+    "etapes": ["Étape 1", "Étape 2", "Étape 3"]
+  }
+]`
 
     const apiKey = process.env.GROQ_API_KEY
-    if (!apiKey) return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
-
-    const ZONES_FR = {
-      epaule: 'épaule', coude: 'coude', poignet: 'poignet',
-      dos_haut: 'dos (haut)', dos_bas: 'dos (bas)', hanche: 'hanche',
-      genou: 'genou', cheville: 'cheville', autre: 'autre zone'
+    if (!apiKey) {
+      console.error('GROQ_API_KEY manquante')
+      return NextResponse.json({ error: 'Clé API manquante' }, { status: 500 })
     }
-
-    const resume = douleurs.map(d =>
-      `- ${d.date_seance} : ${ZONES_FR[d.zone] || d.zone}, intensité ${d.intensite}${d.note ? ` (${d.note})` : ''}`
-    ).join('\n')
-
-    const prompt = `Tu es un coach sportif expert en prévention des blessures. Voici l'historique des douleurs notées par un sportif lors de ses séances :
-
-${resume}
-
-Analyse ces données et réponds en JSON valide uniquement, sans texte avant ou après :
-{
-  "patterns": ["pattern 1 détecté", "pattern 2 détecté"],
-  "zones_a_risque": ["zone1", "zone2"],
-  "recommandations": ["recommandation 1", "recommandation 2", "recommandation 3"],
-  "niveau_alerte": "faible" | "modere" | "eleve",
-  "message": "Message personnalisé court et bienveillant (2-3 phrases max)"
-}
-
-Sois concret, bienveillant et prudent. Si la douleur est forte ou répétée, suggère de consulter un professionnel. Ne remplace pas un médecin.`
 
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -48,24 +55,29 @@ Sois concret, bienveillant et prudent. Si la douleur est forte ou répétée, su
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3.6-27b',
-        max_tokens: 800,
-        temperature: 0.3,
+        model: 'openai/gpt-oss-20b',
+        max_tokens: 4000,
+        temperature: 0.7,
         messages: [
-          { role: 'system', content: 'Tu es un coach sportif expert. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après.' },
+          { role: 'system', content: 'Tu es un nutritionniste expert. Tu réponds UNIQUEMENT en JSON valide, sans texte avant ou après, sans balises markdown.' },
           { role: 'user', content: prompt },
         ],
       }),
     })
 
-    if (!res.ok) return NextResponse.json({ analyse: null })
+    if (!res.ok) {
+      const err = await res.text()
+      console.error('Groq API error:', res.status, err)
+      return NextResponse.json({ error: 'Erreur API Groq: ' + res.status }, { status: 500 })
+    }
 
     const data = await res.json()
     const texte = data.choices?.[0]?.message?.content || ''
+    console.log('Qwen raw response:', texte.slice(0, 500))
     const json = parseGroqJson(texte)
-    return NextResponse.json({ analyse: json })
+    return NextResponse.json({ suggestions: json })
   } catch (err) {
-    console.error('Analyse douleurs error:', err)
-    return NextResponse.json({ analyse: null })
+    console.error('Suggestions repas error:', err)
+    return NextResponse.json({ error: 'Impossible de générer des suggestions' }, { status: 500 })
   }
 }
