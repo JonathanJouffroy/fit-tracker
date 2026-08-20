@@ -82,7 +82,7 @@ Génère un bilan hebdomadaire personnalisé, bienveillant et motivant. Réponds
         'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'qwen/qwen3.6-27b',
+        model: 'openai/gpt-oss-20b',
         max_tokens: 1000,
         temperature: 0.4,
         messages: [
